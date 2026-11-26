@@ -1,0 +1,9 @@
+services:
+  - type: web
+    runtime: docker
+    name: mindjora-pacientes
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false

@@ -1,0 +1,6 @@
+# Estos archivos corren dentro de contenedores Linux y deben conservar LF
+# aunque el checkout se haga en Windows con core.autocrlf=true.
+Dockerfile text eol=lf
+*.sh text eol=lf
+tools/nginx-security.conf text eol=lf
+web/_headers text eol=lf

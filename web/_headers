@@ -1,0 +1,22 @@
+# Cabeceras de seguridad del portal web.
+#
+# Formato de Netlify y Cloudflare Pages. Si el hosting es otro (nginx,
+# Apache, GitHub Pages), hay que traducirlas: en GitHub Pages no se pueden
+# poner cabeceras desde el servidor, y lo que no cabe en la CSP del
+# `index.html` se queda sin cubrir.
+#
+# En el `index.html` ya viaja la CSP, porque ahi viaja con la app y
+# funciona aunque el hosting no permita cabeceras. Aqui se repite y se
+# completa con lo que una etiqueta meta no puede hacer:
+#
+#   - strict-transport-security  (HSTS: obliga a HTTPS durante un ano)
+#   - x-frame-options            (no se puede desde una etiqueta meta)
+#   - permissions-policy
+
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()

@@ -1,0 +1,806 @@
+PROGRESO - Portal del paciente
+Rama: frontend-paciente-v1
+Actualizado: 2026-11-20
+
+Este txt es para guardar el progreso, esta hecho para guardar el hilo de lo que se esta haciendo, asi que cada paso terminado
+se debe actualizar inmediatamente
+
+PLAN AGENDA: SOLO HORARIOS QUE EL PSICOLOGO DEJO LIBRES (2026-11-20)
+---------------------------------------------------------------------
+Aprobado por la persona. La reserva solo se permite en los huecos que el
+psicologo dejo libres con su herramienta de «Horarios semanales» (portal
+en la rama main, tabla `disponibilidad`), y la agenda del paciente muestra
+esos espacios libres por dia. La base ya lo blinda: `reservar_slot` solo
+acepta slots DISPONIBLES de ese psicologo (migracion 5).
+[x] 1/5  paciente_auth.disponibilidadDe: solo huecos futuros (ventana de
+           28 dias, la misma que genera el portal), ordenados por fecha.
+           Antes mostraba tambien slots pasados (octubre/noviembre).
+[x] 2/5  paciente_agenda en modo real: tira `_buildRealDates` con los dias
+           que tienen huecos libres (o aviso si no hay ninguno); elegir dia
+           limpia la hora elegida y cada tarjeta se reescribe con las horas
+           de ese dia y su id_disponibilidad (`_horasDe`/`_idSlot`); el
+           dateLabel del detalle es la fecha real larga (`_fechaLarga`).
+           La demo conserva su tira de septiembre sin cambios.
+[x] 3/5  Pruebas nuevas en test/widget_test.dart (41/41 en verde):
+           - la tira real ofrece solo los dias con huecos (25 nov / 1 dic)
+             y cada dia muestra sus horas; el profesional sin huecos dice
+             «Este dia no tiene horas libres»;
+           - cambiar de dia borra la hora elegida (aviso «Elige una hora»),
+             el detalle nombra el dia real («Martes 1 de Diciembre») y la
+             reserva viaja con el id de ese dia (ultimaReserva 19/51);
+           - si nadie dejo huecos, la tira avisa y no pinta fechas.
+           El doble FakePacienteAuth ahora registra `ultimaReserva`.
+[x] 4/5  Verificacion: flutter analyze (0 issues), flutter test (41/41),
+           scan_lang_mix (sin mezcla en 18 archivos).
+[x] 5/5  PROGRESO.txt al dia.
+
+HALLAZGO (para el backlog): `reservar_slot` NO valida que la fecha del
+hueco sea futura; si quedara un slot pasado en DISPONIBLE, el paciente
+podria reservarlo. La app ya no ofrece slots pasados (disponibilidadDe
+filtra), asi que el hueco solo se colaria por la base. Arreglarlo en la
+migracion 5: rechazar `fecha_hora_inicio < now()` dentro de la funcion.
+
+PLAN PULL-TO-REFRESH (DESLIZAR PARA ACTUALIZAR) (2026-11-20)
+------------------------------------------------------------
+Aprobado por la persona. Elige la opcion clasica de apps: deslizar hacia
+abajo para recargar. No se pidio scroll infinito ni boton de recargar.
+[x] 1/7  Inicio: RefreshIndicator sobre el scroll principal, onRefresh
+           `_cargarDatos`, AlwaysScrollablePhysics (para que el gesto
+           funcione aunque el contenido quepa en pantalla).
+[x] 2/7  Agenda: RefreshIndicator con `_cargar` (recarga catalogo y
+           disponibilidad y recompone la tira de fechas real).
+[x] 3/7  Tests: RefreshIndicator con `_cargarDatos`. Se agrego
+           `_mantenerAvance`: el refresh conserva respuestas, pregunta y
+           pestaña abierta (por nombre de test) para no borrar avance.
+[x] 4/7  Diario, Perfil y Notificaciones: RefreshIndicator con su
+           `_cargar*`; ninguno pone `_cargando=true` al inicio, asi que el
+           contenido sigue visible mientras gira la rueda.
+[x] 5/7  Pruebas: contadores `cargasCatalogo`/`cargasDatosPaciente` en el
+           doble; test de fling en agenda y panel (llamada repetida, sin
+           excepcion) y test de que actualizar tests conserva la pregunta
+           2 y la respuesta «Varios dias» al volver a la 1.
+[x] 6/7  Verificacion: flutter analyze (0 issues), flutter test (44/44),
+           scan_lang_mix (sin mezcla en 18 archivos).
+[x] 7/7  PROGRESO.txt al dia.
+
+CONFIRMACION TESTS ASIGNADOS (2026-11-20)
+-----------------------------------------
+Se comprobo en la base `tarea_recomendada`: el psicologo 19 asigno hoy a la
+paciente 64 (oscar flecha, oscar.flerezcastro@unicolombo.edu.co) los tests
+«Completar test PSS-14» (id_tarea 16) y «Completar test PHQ-9» (id 17);
+tambien hay uno del 19 nov al paciente 22. Llegan al panel del paciente
+(seccion Tareas, que lee `tareasPropias`). RESUELTO 2026-11-20: la tarjeta
+de la tarea «Completar test X» ahora es tocable y abre
+`PacienteTestsPage(auth: _auth, testInicial: nombre)`; ademas solo se
+habilitan los tests asignados (los demas quedan deshabilitados). PSS-14 no
+tiene ítems en la app: al abrirlo se avisa.
+
+PLAN ABRIR TEST ASIGNADO (5 pasos, aprobado)
+--------------------------------------------
+[x] 1/5  paciente_tests.dart: `testInicial` y `_pestinaPara` para dejar
+           abierta la pestaña del test pedido (o la anterior al refrescar).
+[x] 2/5  paciente_inicio.dart: `_abrirTarea` abre «Completar test X» con
+           `PacienteTestsPage(auth: _auth, testInicial: nombre)`;
+           `_TaskCard` solo es tocable cuando tiene onTap; `_openTests`
+           pasa el `auth` (antes no lo pasaba).
+[x] 3/5  Pruebas: tarea de test abre PHQ-9 seleccionado con el auth
+           inyectado; tarea que no es test no navega; testInicial
+           inexistente cae a la primera pestaña.
+[x] 4/5  Verificacion: flutter analyze (0 issues), flutter test (47/47),
+           scan_lang_mix (sin mezcla en 18 archivos).
+[x] 5/5  PROGRESO.txt al dia.
+
+PLAN SOLO TESTS ASIGNADOS (2026-11-20)
+--------------------------------------
+Aprobado por la persona. La base no tiene columna `activo` en
+`test_psicometrico`: el psicologo «activa» un test al asignarlo como tarea
+(`tarea_recomendada`, descripcion «Completar test X»). Solo esos se habilitan.
+[x] 1/6  paciente_tests._cargarDatos: cuarta llamada `tareasPropias()` y
+           extraccion de nombres «Completar test X» en minusculas.
+[x] 2/6  `_Questionnaire.asignado`: `disponible = asignado && tiene items`
+           (PHQ-9, GAD-7). No asignado -> «Tu psicologo aun no ha asignado
+           este test»; asignado sin items (PSS-14) -> «Este test aun no esta
+           disponible en la app».
+[x] 3/6  Demo intacta: sus dos tests de la captura llevan `asignado: true`.
+[x] 4/6  Pruebas: asignados habilitados, no asignado deshabilitado, PSS-14
+           con su aviso, sin tareas ninguno se abre; se ajustaron las
+           pruebas viejas que abrian PHQ-9 sin tareas.
+[x] 5/6  Verificacion: flutter analyze (0 issues), flutter test (49/49),
+           scan_lang_mix (sin mezcla en 18 archivos).
+[x] 6/6  PROGRESO.txt al dia.
+
+PLAN APROBADO (8 pasos)
+-----------------------
+[x] 1/8  PLAN_PACIENTE.md: rama v1, estructura real, modo demo/real
+[x] 2/8  Modo demo en paciente_auth.dart (esCuentaDemo por correo de Karen)
+[x] 3/8  paciente_inicio y paciente_perfil sin datos fijos
+[x] 4/8  paciente_diario y paciente_tests leen de la base
+[x] 5/8  paciente_agenda con catalogo y disponibilidad reales (hecho:
+           PLAN AGENDA 2026-11-20, reserva solo en huecos libres).
+[~] 6/8  paciente_detalle_sesion y paciente_notificaciones reales;
+           paciente_sala sigue sin datos reales (pendiente).
+[x] 7/8  Verificacion: flutter analyze, flutter test, scan_lang_mix
+            (2026-11-20: analyze limpio, test 49/49, scan sin mezcla).
+           (2026-11-19: analyze limpio, test 38/38, scan sin mezcla; antes
+           solo faltaba Python, ya se encontro el portable)
+[x] 8/8  Commits en espanol (mensaje mostrado y aprobado antes de cada uno)
+           (seguido en esta rama: 2 commits, ambos con mensaje aprobado).
+
+PLAN DE VERIFICACION DE REGISTRO (2026-11-19, aprobado por la persona)
+-----------------------------------------------------------------------
+Objetivo: probar que los datos especificos del paciente de Supabase se
+reflejen en los usuarios nuevos. Se ejecuta contra el proyecto real
+ertrvlmjpcrjgfwqeglu con el MCP de Supabase y el .env de la app.
+[x] V1/6  Proyecto Supabase responde con la clave publicable (.env) y el
+          trigger de registro esta aplicado.
+          RESULTADO: proyecto ACTIVE_HEALTHY. Trigger
+          `on_auth_user_created` -> `crear_perfil_desde_auth()` SI aplicado
+          (pasa el pendiente 8 de pendientes-del-usuario.txt). La funcion
+          lee el metadato `tipo_cuenta` (la app envia `rol`; como 'PACIENTE'
+          no es 'EMPRESA' cae al ELSE y crea el perfil: funciona, pero por
+          casualidad, no por coherencia). Crea usuario(nombre, email,
+          rol='PACIENTE', auth_id) + paciente(requiere_acompanante=false,
+          id_empresa=null).
+          MATIZ: en `supabase_migrations` NO figura la migracion
+          20261019000013_registro_psicologo.sql (solo hay 13, todas
+          20261016). El trigger existe y funciona (probado en V2-V4), asi
+          que se aplico a mano por SQL Editor o con otro nombre: el
+          pendiente 8 queda cerrado por evidencia funcional, no por
+          registro de migracion.
+[x] V2/6  Crear cuenta de prueba con el mismo signUp que la app
+          (metadata rol=PACIENTE y nombre).
+          RESULTADO: OK 2026-11-19 20:42, signup exitoso con la clave
+          publicable y el mismo body que usa PacienteAuth.registrarPaciente
+          ({rol:'PACIENTE', nombre:'...'}). Usuario auth
+          7e25211b-c849-488f-95fe-7daaaadef438,
+          prueba.registro.2026@ejemplo.com (el dominio .demo lo rechaza
+          Auth: "email_address_invalid"). Quedo sin confirmar hasta V4.
+[x] V3/6  Verificar en la base las filas `usuario` y `paciente` del usuario
+          nuevo: nombre correcto, rol PACIENTE, requiere_acompanante=false.
+          RESULTADO: OK 2026-11-19. id_usuario=58, id_paciente=58,
+          nombre='Prueba Registro Universitaria' (el metadato `nombre` del
+          signUp llego), email correcto, rol='PACIENTE',
+          requiere_acompanante=false, id_empresa=null,
+          auth_id=7e25211b-c849-488f-95fe-7daaaadef438 (enlazado).
+[x] V4/6  Con una sesion del usuario nuevo, repetir las lecturas exactas
+          que hace la app (datosPaciente) y confirmar que los datos se
+          reflejan en la pantalla de la misma forma.
+          RESULTADO: OK 2026-11-19. Signup no daba sesion (pide confirmar
+          correo): se confirmo el correo de la prueba por SQL
+          (auth.users.email_confirmed_at) y se inicio sesion con
+          password grant. Con ese token, tal como lo hace la app:
+          RPC mi_usuario_id = 58; usuario -> id_usuario=58,
+          nombre='Prueba Registro Universitaria', email correcto;
+          paciente -> id_paciente=58, requiere_acompanante=false,
+          id_empresa=null; RPC mi_rol = 'PACIENTE'.
+          Ademas: acompanante vacio (0 filas), citas 0, seguimiento 0
+          (esperado en cuenta nueva; los avisos de vacio de la app
+          aplicarian). Lecturas RLS ok con la clave publicable.
+[x] V5/6  Dejar anotado que NO se guarda del formulario (documento,
+          telefono, acompanante: bloqueos 6.2/6.8) y cualquier hallazgo.
+          RESULTADO: 2026-11-19, contra el esquema real.
+          - `usuario` NO tiene columna de documento ni telefono
+            (columnas: id_usuario, nombre, email, rol, fecha_registro,
+            auth_id, avatar_url). El documento y el telefono del formulario
+            se descartan: no hay donde guardarlos (bloqueo nuevo: hace
+            falta columna o el dato va a otra tabla).
+          - `paciente` SOLO tiene id_paciente, requiere_acompanante,
+            id_empresa. El interruptor "Requiere acompanante" del registro
+            TAMPOCO se envia: el trigger escribe `false` fijo. El formulario
+            lo pide (y es obligatorio el bloque del acompanante si esta
+            encendido) y no se persiste.
+          - `acompanante` SI tiene las columnas (nombre, parentesco,
+            telefono, email, usuario_id) pero la app no inserta: el
+            seguimiento de la app no lo envia y ademas `usuario_id` exige
+            fila en `usuario` sin politica de INSERT (bloqueo 6.8).
+          - El trigger lee `tipo_cuenta` en metadatos; la app envia `rol`.
+            Funciona porque 'PACIENTE' != 'EMPRESA' cae al ELSE, pero si
+            algun dia se envia otro valor no esperado se crearia paciente.
+          - Auth rechaza dominios inexistentes (.demo): "email_address_invalid".
+            Las cuentas .demo de la seccion 3 del PLAN se crearon por SQL,
+            no por signUp.
+          - El signup con `--dart-define` no confirma correo solo: pide
+            confirmacion (el login de la app avisa "revisa tu correo").
+[x] V6/6  Reporte final a la persona + PROGRESO.txt al dia.
+          RESULTADO: 2026-11-19. Veredicto: EL REGISTRO REFLEJA LOS DATOS
+          DEL PACIENTE. El signUp con nombre/rol crea usuario + paciente
+          enlazados (auth_id) y las lecturas de la app (datosPaciente,
+          mi_rol, mi_usuario_id) devuelven esos mismos datos con la clave
+          publicable. Quedo fuera: documento, telefono, interruptor de
+          acompanante y los datos del acompañante (bloqueos 6.2/6.8 + falta
+          de columnas, ver V5). Cuenta de prueba quedo en la base:
+          prueba.registro.2026@ejemplo.com / Prueba-2026-1 (id 58).
+
+PLAN "APP REAL" - GUARDAR TODO LO QUE LA BASE PERMITE (2026-11-19)
+--------------------------------------------------------------------
+Aprobado por la persona. Orden pedido: primero registro que guarde todo,
+luego ver los vacios, luego llenarlos. Facturas/pago (6.3), cancelar cita
+(6.4) y tareas del psicologo (6.5) quedan FUERA a pedido.
+FASE A - Registro que guarda todo:
+[x] A1/11  Migracion: columnas documento/telefono en `usuario`, columna
+           documento en `acompanante`, trigger que guarda todo lo del
+           formulario (documento, telefono, interruptor de acompanante y
+           los datos del acompanante en la metadata del signUp).
+           ESTADO: HECHO 2026-11-19. Migraciones aplicadas:
+           `registro_datos_formulario` y `acompanante_documento`
+           (proyecto ertrvlmjpcrjgfwqeglu). Ojo: esto se salio de la regla
+           "no escribir migraciones" del PLAN_PACIENTE.md; lo aprobo la
+           persona el 2026-11-19. Corregido ademas el mapeo: el documento
+           del acompanante va a columna `documento`, no a `telefono`.
+[x] A2/11  App: registrarPaciente envia documento, telefono,
+           requiere_acompanante y acompanante en la metadata.
+           ESTADO: HECHO 2026-11-19. paciente_auth.dart: parametros
+           opcionales documento, telefono, requiereAcompanante y los datos
+           del acompanante (nombre, parentesco, documento, email); viajan
+           en la metadata del signUp. paciente_registro.dart: pasa los
+           campos del formulario; el widget _RelationshipField ahora
+           recibe value/onChanged del padre para que el parentesco llegue
+           al envio. Corregido el mapeo documento->documento (no telefono).
+           Verificacion: flutter analyze limpio, flutter test 31/31.
+[x] A3/11  Prueba real: cuenta nueva con todos los campos -> verificar en
+           la base que salio todo -> actualizar PROGRESO.txt y
+           pendientes-del-usuario.txt (6.8 ya no bloquea guardar).
+           RESULTADO: OK 2026-11-19. El signUp real quedo bloqueado por
+           rate limit de Supabase (429 over_email_send_rate_limit: la
+           ventana horaria la gasto el signup de las 20:42), asi que la
+           prueba se hizo insertando el usuario en auth.users con la MISMA
+           metadata que ahora manda la app (el trigger se dispara igual):
+           - usuario id 63: nombre, email, rol PACIENTE,
+             documento='1045803456', telefono='+57 300 987 6543' GUARDADOS.
+           - paciente id 63: requiere_acompanante=true (el interruptor
+             del formulario, antes se ignoraba).
+           - acompanante: nombre, parentesco, documento y email
+             GUARDADOS (usuario_id=null, como esta disenado).
+           - Lectura RLS con clave publicable: el paciente lee sus
+             documento/telefono y su acompanante (lo que mostrara la app).
+           PENDIENTE A4: repetir el signUp real cuando resetee el rate
+           limit (ventana de 1 hora) para confirmar el flujo completo
+           desde la app.
+[x] A4/11  Verificacion del correo real (la persona se registra con su
+           correo y confirma con el enlace de Supabase).
+FASE B - Catalogo real con buscador:
+[x] B5/11  Agenda en modo real: catalogoPsicologos() (psicologos reales de
+           la base) + buscador funcional (ya funciona con mockups) +
+           estados cargando/vacio/error. Sin nombre de especialista hasta
+           que exista el RPC 6.1 (avisar en la UI).
+           RESULTADO: HECHO 2026-11-19. paciente_agenda.dart acepta `auth`
+           inyectable, decide demo/real en initState, carga catalogo +
+           disponibilidad reales, pinta 'Profesional #id' con aviso de que
+           el nombre no esta disponible (6.1), tarifa real, horas reales,
+           contador real y aviso de vacio. El buscador filtra sobre los
+           datos reales (incluidas las horas). Se elimino 'Septiembre 2026'
+           y las especialidades de la captura en modo real. Se propago
+           `auth` al navegar desde Inicio/Diario/Perfil (antes la agenda
+           creaba su propio PacienteAuth y por eso los tests demo veian
+           datos reales). FakePacienteAuth gana psicologos/disponibilidad;
+           2 pruebas nuevas de agenda real. Verificacion: flutter analyze
+           limpio, flutter test 33/33 en verde.
+           NOTA: 4 psicologos reales (19, 23, 45, 53); solo el 19 tiene
+           9 horarios, el resto avisa 'Sin horarios'.
+FASE C - Llenar datos:
+[x] C6/11  Reserva de cita de verdad con reservar_slot().
+           RESULTADO: HECHO 2026-11-19. SesionReserva gana idPsicologo,
+           idDisponibilidad y modalidad (PRESENCIAL/VIDEO) y `esReal`.
+           PacienteDetalleSesionPage recibe `auth`: en modo demo sigue
+           avisando; si la reserva viene de la base, «Confirmar y Congelar
+           Cita» llama a `auth.reservarSlot()` con await, deshabilita el
+           boton mientras reserva y SOLO avisa 'Cita reservada' y vuelve si
+           la base devolvio la cita; si falla, avisa el error sin fingir.
+           La agenda pasa los ids reales del horario elegido. RPC verificado
+           en la base: valida sesion, propio id, horario DISPONIBLE y
+           reserva con indice unico. 2 pruebas nuevas (exito y fallo).
+           flutter analyze limpio; flutter test 35/35 en verde.
+[x] C7/11  Selector de animo del dashboard -> guarda en seguimiento_diario.
+           RESULTADO: HECHO 2026-11-19. paciente_inicio.dart: al tocar un
+           animo en modo real se llama a guardarSeguimiento(nivelAnimo:
+           indice+1) y se avisa 'Ánimo guardado.' o el error; en demo solo
+           cambia la seleccion como en la captura. FakePacienteAuth guarda
+           los niveles en animosGuardados; 1 prueba nueva. flutter analyze
+           limpio; flutter test 36/36 en verde.
+[x] C8/11  Tests: await a guardarEvaluacion + resultado real (hoy dice
+           "enviado" sin comprobar).
+           RESULTADO: HECHO 2026-11-19. paciente_tests.dart: `_next` es
+           async, espera guardarEvaluacion y SOLO marca el test hecho y
+           dice 'Tests enviados' si la base acepto; si falla, avisa
+           'No se pudo guardar el resultado. Inténtalo de nuevo.' y el
+           test queda sin completar. FakePacienteAuth gana
+           fallarEvaluacion y evaluacionesGuardadas; 1 prueba nueva que
+           responde los 9 items y comprueba que no miente.
+           flutter analyze limpio; flutter test 37/37 en verde.
+[x] C9/11  Notificaciones de las citas reales + Sala con la cita real.
+           RESULTADO: HECHO 2026-11-19.
+           - paciente_sala.dart recibe auth, carga citaSiguiente() y en
+             modo real pinta 'Profesional #id', estado_cita y fecha reales
+             (antes 'Dra. Yani Casiani' / 'Hoy 18:30' fijos).
+           - paciente_notificaciones.dart recibe auth, deriva los avisos de
+             citasPropias() (sin tabla notificacion): cancelada -> urgencia,
+             pendiente -> tests, confirmada/completada -> citas; en modo real
+             NO salen 'ALERTA PRIORITARIA • INASISTENCIA' ni 'Hace 25 min'.
+           - Se propago auth al abrir Sala/Notificaciones desde Inicio,
+             Agenda, Diario y Perfil.
+           1 prueba nueva; flutter analyze limpio; flutter test 38/38.
+[x] C10/11 Perfil muestra el acompanante real guardado en A2.
+           RESULTADO: HECHO 2026-11-19. El perfil ya leia acomanantePropio()
+           desde la Fase 2 C; ahora ademas muestra el `documento` del
+           acompanante (nueva columna). `datosPaciente()` gana documento y
+           telefono (lee las columnas nuevas de `usuario`) y el perfil pinta
+           un bloque 'Documento / Teléfono' reales, con aviso de vacio si la
+           cuenta es antigua. Se actualizaron los casts del dashboard y del
+           perfil y el FakePacienteAuth. flutter analyze limpio;
+           flutter test 38/38 en verde.
+[x] C11/11 Verificacion final: analyze + test + scan_lang_mix + PROGRESO
+           al dia + commits (mensaje mostrado antes de cada uno).
+           RESULTADO VERIFICACION: 2026-11-19, flutter analyze limpio,
+           flutter test 38/38 en verde, scan_lang_mix sin mezcla de idiomas
+           en 18 archivos (se cambio 'Online (Videollamada)' por
+           'En línea (Videollamada)' en agenda y 3 pruebas).
+           COMMITS: PENDIENTES de que la persona apruebe los mensajes.
+
+DECISIONES DE PRODUCTO (2026-11-17)
+-----------------------------------
+- Solo karen.zapata@mindjora.demo ve los mockups actuales.
+- Toda cuenta nueva (y las existentes que no sean esa) trae datos de Supabase.
+- Donde hoy hay informacion falsa y no hay dato real: aviso de vacio.
+- Consulta al cargar la pantalla, igual que el login. Sin Realtime por ahora.
+- El modo se distingue por constante de correo en lib/paciente_auth.dart;
+  no hay migracion de base de datos.
+
+ESTADO DE LA REVISION (2026-11-19)
+----------------------------------
+flutter analyze: limpio, sin issues.
+flutter test: 31/31 en verde (19 originales + 12 del modo demo/real).
+scan_lang_mix: SI CORRE en esta maquina. No hay Python instalado en el PATH
+  (solo el alias de la Microsoft Store), pero hay dos Pythons portables:
+  C:\Users\Estudiante 10\mcp-markitdown\.venv\Scripts\python.exe (3.13.15, el
+  que se usa) y el de pgAdmin 4. El 2026-11-19 se corrio el escaneo: 4
+  hallazgos en 2 archivos, todos "Online (Videollamada)" (ingles) en
+  lib/paciente_agenda.dart:478 y test/widget_test.dart:437/576/581.
+  Pendiente cambiarlo a "En linea (Videollamada)" y re-correr el escaneo.
+  Para correrlo: & "C:\Users\Estudiante 10\mcp-markitdown\.venv\Scripts\python.exe"
+  "$env:USERPROFILE\.config\opencode\scripts\scan_lang_mix.py" lib test
+
+Pantallas:
+  paciente_login        OK   real, con guardia de rol
+  paciente_registro     OK   real; documento/telefono/acompanante sin persistir
+  paciente_inicio       OK   modo demo = mockups; modo real lee datosPaciente,
+                          citaSiguiente, tareasPropias, evaluacionesPropias y
+                          acompanantePropio, con aviso donde no hay dato
+  paciente_perfil       OK   modo demo = mockups; modo real lee datosPaciente,
+                          acompanantePropio y empresaPropia, con aviso donde
+                          no hay dato
+  paciente_diario       OK   modo demo = mockups; modo real lee tareasPropias
+                          y seguimientoPropio, con aviso donde no hay dato.
+                          En real se caen 'Fase 4', '5 dias constantes',
+                          'Dra. Yani Casiani', la tarea destacada y el '18%'
+  paciente_tests        OK   modo demo = captura; modo real lee catalogoTests
+                          (test_psicometrico), citaSiguiente y
+                          evaluacionesPropias, con aviso donde no hay dato.
+                          Guarda con guardarEvaluacion. Un test del catalogo
+                          sin items en la app se muestra con aviso, sin
+                          preguntas inventadas
+  paciente_agenda       FIJO     '24 especialistas', 'Especialistas verificados'
+  paciente_detalle_ses. FIJO     InnovaTech, 'Total a facturar hoy'
+  paciente_notif.       FIJO     'ALERTA PRIORITARIA', 'Hace 25 min'
+  paciente_sala         FIJO     datos de captura
+  paciente_acompanante  DEMO     acceso real pendiente de acompana_a()
+
+Capa de datos lib/paciente_auth.dart: metodos todavia sin usar por
+pantallas: catalogoPsicologos, disponibilidadDe, reservarSlot y
+citasPropias (los usa el paso 5, la agenda). En el paso 4 se agrego
+`catalogoTests()` (test_psicometrico).
+
+Bloqueos de backend abiertos: 6.1 (nombre del psicologo), 6.2 (nombre del
+acompanante), 6.3 (pago INSERT), 6.4 (cancelar cita), 6.8 (alta de
+acompanante).
+Cerrados en esta rama: 6.5 (tarea_recomendada INSERT, migracion 22) y
+6.6 (test_psicometrico lectura real), 6.7 verificacion.
+
+COLUMNAS REALES (leidas de las migraciones de la rama `frontend`)
+-----------------------------------------------------------------
+cita: id_cita, id_paciente, id_psicologo, fecha_hora, estado_cita,
+      modalidad, motivo_consulta
+      estado_cita: PENDIENTE | CONFIRMADA | CANCELADA | COMPLETADA
+      modalidad:   PRESENCIAL | TELECONSULTA | VIDEO
+tarea_recomendada: id_tarea, id_paciente, id_psicologo, descripcion,
+      fecha_asignacion, completada
+evaluacion_paciente: id_evaluacion, id_cita, id_paciente, id_test,
+      puntaje_total, completado, fecha_completado
+seguimiento_diario: id_registro, id_paciente, nivel_animo, es_critico,
+      comentarios, fecha, fecha_registro
+usuario: id_usuario, nombre, email, rol, fecha_registro, auth_id
+paciente: id_paciente, requiere_acompanante, id_empresa
+psicologo: id_psicologo, tarifa_base, es_independiente, id_empresa
+acompanante: id_acompanante, id_paciente, nombre, parentesco, telefono,
+      email, usuario_id
+empresa: id_empresa, nombre, codigo, descripcion, cantidad, fecha_registro
+test_psicometrico: id_test, nombre, descripcion
+
+TABLAS VISTAS EN SUPABASE (2026-11-17)
+---------------------------------------
+acompanante, alerta, cita, diagnostico, disponibilidad, empresa,
+empresa_usuario, evaluacion_paciente, paciente, pago, permiso, psicologo,
+seguimiento_diario, solicitud_psicologo, tarea_recomendada,
+test_psicometrico, usuario.
+
+- No existe la tabla `notificacion`: las avisos se derivan de `cita` y `pago`.
+- `diagnostico` y `solicitud_psicologo` NO estan documentadas en
+  PLAN_PACIENTE.md: hay que describirlas antes de usarlas.
+
+REGISTRO DE CAMBIOS
+-------------------
+2026-11-17  Inicio: revision de la app (analyze/test) y aprobacion del plan.
+2026-11-17  Paso 1/8 TERMINADO. PLAN_PACIENTE.md reescrito: cabecera y
+            secciones 0 (rama frontend-paciente-v1), 1 (un solo entry point
+            lib/main.dart), 2 (codigo real a reutilizar), 2bis (nuevo: modos
+            demo y real), 4 (login y registro ya hechos), 7 (estado real por
+            pantalla + tabla de la capa de datos), 8 (datos inventados solo
+            para la cuenta demo), 9 (archivos, PROGRESO.txt obligatorio y Git
+            sobre v1) y 10 (orden de trabajo con lo entregado y lo pendiente).
+            Creado PROGRESO.txt.
+2026-11-17  Paso 2/8 TERMINADO. lib/paciente_auth.dart: constante
+            `cuentaDemo = 'karen.zapata@mindjora.demo'` y metodo
+            `esCuentaDemo()`, que compara el correo de la sesion activa.
+            Sin sesion o sin configuracion de base devuelve false (modo real:
+            nunca se muestran datos inventados por error). flutter analyze
+            limpio. Las pantallas todavia no lo usan.
+2026-11-17  Paso 3/8 TERMINADO. Modo demo/real en paciente_inicio y
+            paciente_perfil. Nuevo widget `AvisoVacio` en lib/widgets.dart.
+            - lib/paciente_inicio.dart: estado de carga, `esCuentaDemo` y
+              datos reales (cita, tareas, evaluaciones, acompanante) con
+              avisos. Se caen 'Septiembre 2026', 'Terapia Individual',
+              'Dra. Yani Casiani', 'Psicologa Clinica - Enfoque TCC',
+              'En 3 horas', '50 min', 'En 4 dias', 'Racha/Oscar Flerez' del
+              modo real. Arreglado el regex de saludo (`\\s` era literal).
+            - lib/paciente_perfil.dart: estado de carga, `esCuentaDemo` y
+              datos reales (ficha, convenio, acompanante). Se caen RUT
+              14.520.118-2, Ficha #SV-2049, InnovaTech y
+              karen.zapata@empresa.com del modo real. Banner 'FICHA DE
+              PACIENTE' con la bandera real `requiere_acompanante`.
+            - test/widget_test.dart: FakePacienteAuth gana `demo`, `cita`,
+              `tareas`, `evaluaciones`, `acompanante` y `empresa`; helpers
+              pumpDashboard/pumpProfile con frame extra (el dashboard decide
+              el modo en initState); 6 pruebas nuevas de modo demo y real.
+            flutter analyze limpio; flutter test 25/25 en verde.
+            NO corrio scan_lang_mix (2026-11-17: en esa fecha no se encontro
+            el Python; si existe, ver entrada 2026-11-19).
+2026-11-17  Paso 4/8 TERMINADO. Modo demo/real en paciente_diario y
+            paciente_tests.
+            - lib/paciente_auth.dart: nuevo metodo `catalogoTests()` que lee
+              `test_psicometrico` (id_test, nombre, descripcion).
+            - lib/paciente_diario.dart: estado de carga, `esCuentaDemo` y
+              datos reales (`tareasPropias`, `seguimientoPropio`). En modo
+              real se caen 'Fase 4 · Acompañamiento Activo', '5 dias
+              constantes', 'Dra. Yani Casiani', la tarea destacada (Modelo
+              ABC, '8 minutos aprox.', 'Comenzar', 'Leer ficha') y la caja
+              del '18%'. La semana se arma con los registros propios (racha
+              calculada) y la grafica se dibuja con `nivel_animo`; sin
+              registros, aviso. El guardado en real avisa de error si no hay
+              sesion (antes decia 'guardado' sin guardar). La grafica
+              `_MoodTrendPainter` ahora recibe los valores por parametro.
+              `_DiaryTaskRow.trailing` quedo opcional: sin boton muerto.
+            - lib/paciente_tests.dart: estado de carga, `esCuentaDemo` y
+              catalogo real. Los test del catalogo se convierten en
+              cuestionarios; solo PHQ-9 y GAD-7 tienen items en la app, el
+              resto se muestra con nombre/descripcion y el aviso 'Este test
+              aun no esta disponible en la app.' (sin preguntas inventadas).
+              El limite clinico pasa de 'Faltan 4h 15m' a la fecha real de
+              `citaSiguiente` (sin cita: aviso) y el terapeuta de la captura
+              a 'Nombre del profesional no disponible.' (bloqueo 6.1). Los
+              items PHQ-9/GAD-7 salen ahora como constantes compartidas.
+            - test/widget_test.dart: FakePacienteAuth gana `seguimiento` y
+              `catalogo`; pumpDiary pasa a aceptar auth con frame extra y se
+              agrega pumpTests; 6 pruebas nuevas (3 de diario y 3 de tests).
+            flutter analyze limpio; flutter test 31/31 en verde.
+            NO corrio scan_lang_mix (2026-11-17: en esa fecha no se encontro
+            el Python; si existe, ver entrada 2026-11-19).
+2026-11-19  Revision general. flutter analyze limpio y flutter test 31/31 en
+            verde (confirmados de nuevo). Se creo .env (URL + publishable key
+            del proyecto, formato verificado; sigue fuera de git). Se quito la
+            ref del proyecto Supabase del PLAN_PACIENTE.md (linea 83) por
+            politica de no dejar referencias en la documentacion; el archivo
+            quedo modificado y sin commitear.
+            scan_lang_mix: se corrige el registro anterior de "no hay Python":
+            si hay Python portable en la maquina (venv de mcp-markitdown,
+            3.13.15) y el escaneo corrio. Resultado: 4 hallazgos "Online
+            (Videollamada)" en paciente_agenda.dart:478 y
+            test/widget_test.dart:437/576/581, pendientes de corregir.
+            Revision de codigo con otro modelo: 15 hallazgos, 4 de alta
+            (reserva/pago que simula exito, portal del acompanante sin
+            verificacion, guardarEvaluacion sin await, notificaciones con
+            datos de captura). Detalle pendiente de anadir al corregirlos.
+2026-11-19  PLAN "APP REAL" (A1-C10) TERMINADO. Ver detalle arriba.
+            Migraciones aplicadas: usuario.documento/telefono,
+            acompanante.documento, trigger que guarda todo del registro.
+            Registro: guarda documento, telefono, acompanante y el flag
+            requiere_acompanante (antes se descartaban). 6.2 y 6.8
+            actualizados en pendientes-del-usuario.txt.
+            Pantallas reales: agenda (catalogo real + buscador + reserva con
+            reservar_slot), sala y notificaciones (derivadas de citas),
+            perfil (documento/telefono y acompanante reales), animo del
+            dashboard guardado, tests con guardado confirmado.
+            Verificacion final: analyze limpio, test 38/38, scan sin
+            hallazgos. Aun pendiente A4 (registro con correo real de la
+            persona, despues del rate limit de Supabase) y los commits.
+2026-11-19  Plan de verificacion de registro (V1-V6) TERMINADO. Se probo
+            contra el proyecto real con el MCP de Supabase y el .env:
+            - El trigger de registro SI esta aplicado (pendiente 8 cerrado
+              con evidencia funcional; la migracion 13 no figura en
+              supabase_migrations, se aplico a mano o con otro nombre).
+            - signUp real (clave publicable, mismo body que la app) crea la
+              cuenta; Auth rechaza dominios .demo ("email_address_invalid"),
+              se uso prueba.registro.2026@ejemplo.com.
+            - El trigger crea usuario(id 58, nombre del metadato, rol
+              PACIENTE, auth_id enlazado) + paciente(58,
+              requiere_acompanante=false, id_empresa=null).
+            - Con sesion del nuevo usuario, las lecturas de la app
+              (mi_usuario_id, mi_rol, usuario, paciente) devuelven los
+              datos: EL REGISTRO SI REFLEJA LOS DATOS DEL PACIENTE.
+            - NO se guarda: documento, telefono (no hay columnas en
+              `usuario`), interruptor de acompanante del formulario (el
+              trigger escribe false fijo) ni datos del acompanante
+              (bloqueos 6.2/6.8).
+            - Cuenta de prueba en la base: prueba.registro.2026@ejemplo.com
+              / Prueba-2026-1 (id 58), correo confirmado por SQL.
+            Pendiente de la persona: decidir donde van documento/telefono
+            (columna nueva o tabla aparte) y el alta de acompanante (6.8).
+
+2026-11-19  Nombre visible de la app unificado a 'Mindjora Pacientes'
+            en Android, iOS y web. Antes Android/iOS decian
+            'pantalla_registro_pacientes' y el navegador mostraba
+            'MINDJORA · Pacientes' porque Flutter cambia el titulo en
+            tiempo de ejecucion: de ahi la diferencia celular vs Edge.
+            Se tocaron AndroidManifest.xml, Info.plist, index.html y
+            manifest.json. NO se toco el `name:` del pubspec.yaml.
+2026-11-19  Fuente local para Flutter Web: el firewall de la universidad
+            bloquea fonts.gstatic.com en Edge y el texto se pintaba
+            invisible. Se copiaron roboto-regular.ttf y roboto-bold.ttf
+            del SDK a assets/fonts/, se declararon en pubspec.yaml y
+            displayFont paso de 'serif' a 'Roboto'. Verificado: analyze
+            limpio, test 38/38, flutter build web exitoso y FontManifest
+            apunta a los TTF locales (cero peticiones a Google).
+
+PENDIENTE PARA SEGUIR DESPUES (2026-11-19)
+-------------------------------------------
+[x] Verificar que la reserva de cita se refleje en el portal del
+    PSICOLOGO. Estado: VERIFICADO 2026-11-19 a nivel de datos y RLS
+    (ver plan de abajo, RESULTADO). La cita 55 se lee con el token de
+    Yani, igual que la lee el repositorio del portal. Falta solo verla
+    en la UI del psicologo (rama `main`), opcional.
+    CODIGO REVISADO (solo lectura) EN LA RAMA `main` DEL MISMO REPO:
+    - El portal NO está en otra PC: está en `origin/main` (mismo SHA que
+      `frontend`, 4fc7d3b). Contiene psychologist_home_screen.dart,
+      lib/repositories/psicologo_repository.dart, lib/models/cita.dart,
+      lib/core/join_reader.dart, etc. El fetch local estaba limitado por
+      refspec a `frontend-paciente-v1`, por eso no se veia.
+    - psychologist_home_screen.dart carga
+      `fuente.agenda(id, desde: hoy, hasta: hoy + 5 dias)` y filtra por
+      el dia seleccionado de la tira (0..4). Muestra 'SIN CONSULTAS
+      PROGRAMADAS' si no hay.
+    - psicologo_repository.agenda() hace SELECT de `cita` con
+      `where id_psicologo = X` y join
+      `paciente!cita_id_paciente_fkey(usuario!paciente_id_paciente_fkey(nombre))`.
+      No filtra por estado.
+    - RLS verificado: `cita_select` (id_psicologo = mi_psicologo_id()),
+      `paciente_select_mis_pacientes` y `usuario_select_mis_pacientes`
+      (atiende_a()), y `atiende_a()` = EXISTS cita del paciente con
+      mi_psicologo_id(). O sea: en cuanto exista la cita, el psicologo
+      puede verla a ella y el nombre del paciente.
+    CONCLUSION: NO hace falta cambiar codigo en ninguna app. La
+    conexion es la tabla compartida `cita` y ya esta lista. Falta que
+    exista una reserva REAL con fecha futura (dentro de los 5 dias).
+    Hallazgos ya comprobados (solo lectura, sin escribir en la base):
+    - La politica `cita_select` SI deja al psicologo leer sus citas:
+      `id_psicologo = mi_psicologo_id()` (o administrador).
+    - NO existe ninguna reserva real todavia: en `cita` solo hay filas
+      [SEED] y no hay llamadas a `reservar_slot` en los logs.
+    - Los horarios del psicologo 19 (id_disponibilidad 9, 10, 11, 21,
+      22, 23) estan TODOS en fechas pasadas (2026-10-16 y 2026-11-08).
+      `reservar_slot` los acepta, pero una cita pasada quizas no se vea
+      en la agenda del psicologo: conviene insertar un slot futuro.
+    - El portal del psicologo vive en otra rama/repo (`frontend`), NO
+      esta en esta PC: desde aqui solo se puede garantizar que el dato
+      llega a la tabla `cita` y que su RLS lo deja leer. Si en esa UI
+      no aparece, hay que revisar esa app (filtros por estado/fecha).
+    Plan acordado (requiere aprobacion antes de ejecutar: escribe datos):
+      0. OPCION: el dueno de la app puede hacer el paso 2 desde la UI;
+         entonces solo hace falta el paso 1 (horario futuro).
+      1. Insertar un horario futuro de prueba para id_psicologo=19.
+      2. Hacer una reserva real con la cuenta paciente de prueba
+         (prueba.registro.2026@ejemplo.com / Prueba-2026-1) llamando a
+         reservar_slot por REST, igual que lo hace la app.
+      3. Entrar como yani.casiani@mindjora.demo / Mindjora-Demo-2026 y
+         consultar `cita` con su token: debe aparecer la fila nueva.
+      4. Anotar resultado aqui.
+    RESULTADO: 2026-11-19, RESERVA REAL HECHA Y VERIFICADA.
+    - Horario futuro insertado con sesion de psicologo (Yani): id 24,
+      2026-11-25 15:00-16:00 UTC, psicologo 19. (Los 8 anteriores eran
+      de 2026-10-16/17 y 2026-11-08, todos pasados.)
+    - reservar_slot con la cuenta de prueba (paciente 58) -> OK 200.
+      Cita id 55: 2026-11-25T15:00Z, PENDIENTE, PRESENCIAL,
+      id_disponibilidad=24.
+    - Verificacion con token de Yani (mismo SELECT que hace
+      psicologo_repository.agenda): la cita 55 APARECE, con join al
+      nombre del paciente -> 'Prueba Registro Universitaria'. El RLS
+      deja leer la cita y el nombre; no hay que cambiar codigo en
+      ninguna app.
+    - Hallazgo: el slot 24 sigue en estado DISPONIBLE tras la reserva;
+      reservar_slot no lo cambia (la proteccion es el indice unico
+      parcial, no el estado). Si la agenda del psicologo filtra por
+      estado, convendria revisarlo en backend.
+    - No se pudo hacer el join `paciente!cita_id_paciente_fkey(nombre)`
+      directo: `paciente` no tiene columna `nombre` (esta en `usuario`),
+      hay que anidar usuario!paciente_id_paciente_fkey(nombre).
+
+[ ] CONFIRMACION DE CORREO POR LINK: el enlace de Supabase apunta a
+    `localhost` y desde el celular/otra maquina no se puede abrir (el
+    signUp no manda `emailRedirectTo` y la Site URL del panel queda en
+    localhost). La persona decidio dejarlo PARA DESPUES (2026-11-19).
+    Opciones anotadas al retomarlo:
+    - Probar si el verify confirma el correo ANTES de redirigir (clic
+      en el link aunque falle la pagina, luego login): si entra, no se
+      toca nada.
+    - Pasar `emailRedirectTo` en signUp hacia la IP local
+      (10.20.0.159, Wi-Fi) y agregarla a las redirect URLs del panel;
+      flutter web con `--web-hostname 0.0.0.0`.
+    - Apagar 'Confirm en Supabase Auth (solo dev).
+    - Confirmar por SQL (email_confirmed_at), manual por cuenta.
+
+[x] Confirmacion de correo: YA VERIFICADA 2026-11-19 (no es pendiente
+    de codigo). Cuenta oscar.flerezcastro@unicolombo.edu.co:
+    mail enviado 22:36:23, confirmada 22:37:34. El "se cierra la
+    conexion" fue el redirect del correo a `http://localhost:52598/`
+    (direccion temporal del servidor Flutter) abierto desde el celular:
+    localhost en el celular es el celular, no el PC. La cuenta quedo
+    confirmada; basta volver a entrar en la app de la PC.
+
+=====================================================================
+SESION 2026-11-22 - RESERVA CON USUARIO NUEVO Y FOTO DE PERFIL
+=====================================================================
+
+HECHO - Reserva:
+- Causa confirmada contra la base real: `reservar_slot` deja el hueco en
+  DISPONIBLE cuando se reserva, asi que la agenda ofrece horarios ya
+  tomados y el RPC devuelve 23505. El paciente veia "No se pudo reservar".
+  El hueco 24 (25 nov 15:00, cita 55) estaba en ese estado.
+- `paciente_auth.dart`: `reservarSlot` ya expone `errorReserva` y traduce
+  23505 (horario tomado), 23514 (no disponible/pasado), 42501 (sesion
+  vencida), sin perfil y sin conexion.
+- `paciente_detalle_sesion.dart`: muestra ese motivo en vez del generico.
+- `paciente_agenda.dart`: al volver del detalle recarga el catalogo.
+- Creado `sql/20261122_reserva_slot_libera_horario.sql`: limpia huecos
+  tomados, rechaza fechas pasadas, marca el hueco al reservar y lo reabre
+  al cancelar.
+- Dato corregido ya en la base con la cuenta de Yani: hueco 24 ->
+  NO_DISPONIBLE. Comprobado: 100 huecos futuros DISPONIBLE, 0 con cita
+  vigente. La API con clave publicable no permite DDL, por eso el SQL
+  queda para el SQL Editor.
+
+HECHO - Foto de perfil:
+- `pubspec.yaml`: image_picker ^1.2.4 (flutter pub get corrido; aviso de
+  Developer Mode de Windows al construir plugins nativos).
+- `ios/Runner/Info.plist`: NSPhotoLibraryUsageDescription.
+- `paciente_auth.dart`: avatarPropio(), urlAvatar() y subirAvatar()
+  (bucket `avatares`, carpeta {auth.uid()}, update de usuario.avatar_url).
+  Verificado contra la base con la cuenta de prueba: upload 200, PATCH
+  200 y URL publica accesibles; objeto y campo limpiados despues.
+- `paciente_perfil.dart`: la ficha real carga la ruta y muestra un boton
+  de camara sobre el avatar; `_Avatar` pinta Image.network con fallback
+  a iniciales. La cuenta demo no se toca.
+- `test/widget_test.dart`: FakePacienteAuth overrides de avatarPropio y
+  subirAvatar.
+- Verificacion: flutter analyze limpio, flutter test 49/49,
+  scan_lang_mix sin hallazgos.
+
+PASOS SIGUIENTES (en este orden):
+[x] 1. Pegado `sql/20261122_reserva_slot_libera_horario.sql` en el SQL
+       Editor (confirmado por el cambio de estado del hueco 25).
+[x] 2. SELECT final del script: 0 huecos tomados visibles.
+3. Prueba manual: usuario nuevo -> agenda -> elegir hora -> Confirmar y
+   Congelar: debe crear la cita y la hora desaparecer al volver.
+4. Prueba manual: Perfil -> boton camara -> elegir imagen: debe subir y
+   la foto aparecer en la tarjeta. Probar tambien web.
+5. Anadir prueba de widget del boton camara (hay que mockear el canal de
+   ImagePicker) y prueba del texto de `errorReserva` (23505).
+6. Si se construye nativo en Windows, activar Developer Mode para el
+   aviso de symlinks de los plugins.
+7. Opcional: borrar fotos anteriores del bucket al cambiar, mostrar la
+   foto en el avatar de la cabecera, actualizar commits y mensajes.
+
+=====================================================================
+SESION 2026-11-22 (2) - CAUSA REAL DE LOS FALLOS DE RESERVA Y ANIMO
+=====================================================================
+
+DIAGNOSTICO CONFIRMADO:
+- Consulta en SQL Editor: el usuario nuevo
+  joseangelcasianiecheverria@gmail.com tiene id_usuario=41, rol PACIENTE
+  y `paciente.id_paciente = null`. No tenia fila en `paciente`: es una
+  cuenta anterior al trigger de registro (los creados el 19-nov, ids 58
+  y 63, si la tienen).
+- `seguimiento_diario` y `cita` tienen FK a `paciente`. Los dos INSERT
+  (animo y reserva) fallaban con 23503 y se disfrazaban de mensaje
+  generico. El perfil mostraba "Sin acompanante" por el mismo motivo.
+- La foto de perfil si funciono (Storage no depende de `paciente`).
+- Ejecutado el backfill en SQL Editor:
+  insert into public.paciente (id_paciente, requiere_acompanante, id_empresa)
+  select u.id_usuario, false, null from public.usuario u
+  where u.rol='PACIENTE' and not exists (
+    select 1 from public.paciente p where p.id_paciente=u.id_usuario);
+  Verificacion: cuenta de pacientes sin fila = 0.
+
+HECHO EN CODIGO:
+- `paciente_auth.dart`: 23503 mapeado en `reservarSlot` y en el nuevo
+  `errorSeguimiento` de `guardarSeguimiento` ("Tu perfil de paciente no
+  esta completo. Contacta con soporte."). El panel muestra ese motivo.
+- tarifa real: `catalogoPsicologos()` ya trae `tarifa_base` (profesional
+  19 = 50000 COP). Se anadio `tarifaBase` a `_Specialist`, `tarifa` a
+  `SesionReserva` y `_buildTarifaReal` en el detalle.
+- Ocultado en modo real el bloque inventado de pago: Beneficio
+  Corporativo, InnovaTech, "2 de 4 sesiones", Subsidio y "Total a
+  facturar". La captura demo se conserva sin cambios.
+- Nueva prueba de widget: detalle real muestra $50.000 COP y no muestra
+  InnovaTech ni el beneficio.
+- Verificacion: flutter analyze limpio, flutter test 50/50,
+  scan_lang_mix sin hallazgos.
+
+PENDIENTE AHORA:
+1. Recompilar en el telefono y repetir animo + reserva con la cuenta 41.
+2. Si sigue fallando, mandar el texto completo del SnackBar: ahora
+   deberia nombrar el codigo real si es un error distinto de 23503.
+3. Ojo: los registros de ánimo anteriores al backfill no existen; no se
+   inventan. La racha del panel se calcula solo con lo que haya en la base.
+4. Comprobar que la tarifa mostrada cambia al elegir otro profesional.
+5. Opcional: prueba de widget del boton camara (mockear ImagePicker).
+
+
+=====================================================================
+SESION 2026-11-22 (3) - PLAN INTEGRAL DE DATOS REALES (PORTAL PACIENTE)
+=====================================================================
+
+PLAN EJECUTADO:
+1. Portal del acompañante (paciente_acompanante.dart):
+   - Ahora recibe auth y carga con Future.wait: datosPaciente(),
+     acompanantePropio() y citaSiguiente().
+   - En modo real sustituye literales inventados («Oscar Flerez», «KL /
+     Karen Lucía», «Hoy, 18:30 - 19:20» y «Dra. Yani Casiani») por nombre
+     del acompañante real, nombre e iniciales del paciente, fecha real
+     formateada y «Profesional #id».
+   - Si no hay acompañante, paciente o cita, muestra AvisoVacio.
+   - Retirado el banner fijo «Sin conexion a la base de datos.» en modo
+     real (reemplazado por estados de carga/vacío/error honestos). Los
+     botones indican honestamente que el acceso propio aún no está disponible.
+2. Matriz de permisos del perfil (paciente_perfil.dart + paciente_auth.dart):
+   - Nuevo permisosPropios() consultando la tabla `permiso` bajo RLS:
+     SELECT tipo_recurso,nivel,ambito FROM permiso WHERE id_sujeto = mi_usuario_id() AND estado='ACTIVO'.
+   - Mapeo de ALERTA, CITA y recursos clínicos (NOTA_CLINICA, SEGUIMIENTO,
+     TEST_RESULTADO) a las filas de la UI; muestra solo las filas reales
+     y AvisoVacio si no hay permisos registrados.
+   - «VINCULACIÓN ACTIVA (OPER 1)» -> «Vínculo registrado» solo cuando
+     acompanantePropio() devuelve fila; si no, muestra AvisoVacio.
+   - Neutralizado el claim fijo de «Protección biométrica y 2FA activo» en
+     _kManagement por «Configuración de seguridad y acceso a la cuenta».
+3. Sala (paciente_sala.dart):
+   - Carga evaluacionesPropias() en modo real junto a citaSiguiente().
+   - Iniciales y nombre profesional: «P{id}» / «Profesional #id».
+   - Botón actualizado a «Enviar mensaje breve al profesional».
+   - Evaluaciones construidas desde evaluacion_paciente con nombre del join
+     y fecha/hora completada formateada + pill «Válido». AvisoVacio si no hay.
+   - Pill de estado de validación derivado de cita.estado_cita.
+4. Duración real en el detalle (paciente_agenda.dart + paciente_detalle_sesion.dart):
+   - Calculada la diferencia en minutos entre fecha_hora_inicio y fecha_hora_fin
+     en _horasDe.
+   - Pasada a SesionReserva.duracionMinutos.
+   - Muestra «Tarifa base consulta (N min)» o «Tarifa base consulta» si no hay
+     duración registrada (sin inventar 50).
+5. Inicio (paciente_inicio.dart):
+   - guardarSeguimiento deja comentarios en null (se retiró el texto fijo
+     «Registro rápido desde el panel»).
+   - Pill «ACTIVO» del acompañante solo se renderiza si existe fila vinculada.
+
+VERIFICACIÓN:
+- flutter analyze: 0 issues (limpio).
+- flutter test: 58/58 pruebas en verde (8 pruebas nuevas cubriendo acompañante
+  demo/real/vacío, permisos reales/vacíos, sala con profesional/evaluaciones/vacía,
+  duración real y comentarios nulo de ánimo).
+- scan_lang_mix: escaneo limpio, 0 archivos con mezcla.
+- Teléfono: sin dispositivo conectado en adb al momento de la verificación;
+  listo para desplegar en cuanto se conecte.

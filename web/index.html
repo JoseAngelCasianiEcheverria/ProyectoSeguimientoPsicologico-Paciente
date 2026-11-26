@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Portal del paciente de Mindjora · Salud Mental">
+
+  <!--
+    Politica de seguridad de contenido (CSP).
+
+    Sin esto, un XSS en cualquier pagina de la app da acceso a la sesion
+    guardada en el navegador. La app no renderiza HTML de usuario, asi que el
+    riesgo real esta en el script de terceros que se carga abajo.
+
+    Lo que permite cada origen:
+      script-src  la app y el script de Supabase (con SRI). CanvasKit ya no
+                  aparece porque se sirve desde el propio origen: hay que
+                  compilar con `--no-web-resources-cdn`.
+      style-src   Flutter inyecta estilos en linea.
+      connect-src la API, el Auth y el Realtime de Supabase, y el `blob:` de
+                  la foto elegida: `image_picker` la entrega como URL de objeto
+                  y `readAsBytes` la descarga con fetch.
+      font-src    las fuentes van en el paquete (Roboto).
+      worker-src  el service worker de Flutter se crea desde un blob.
+      img-src     los recursos de la app y los de Supabase Storage.
+
+    `frame-ancestors` no funciona en una etiqueta meta: va en las cabeceras
+    del servidor. Ver `web/_headers`.
+
+    Si al publicar la app algo no carga, el navegador dice que se bloqueo
+    por la CSP en la consola. Empezar por ahi antes de tocar el codigo.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline';
+    font-src 'self' data:;
+    img-src 'self' data: blob: https://*.supabase.co;
+    connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co;
+    worker-src 'self' blob:;
+    manifest-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Mindjora Pacientes">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <meta name="theme-color" content="#006B63">
+  <title>Mindjora Pacientes</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js" async></script>
+
+  <!--
+    supabase_flutter en web delega en la libreria JavaScript de Supabase y la
+    busca en `window.supabase`. Sin este script tag el cliente web falla al
+    inicializar en tiempo de ejecucion, aunque el proyecto compile bien y los
+    tests en VM pasen, porque los tests no usan el cliente real.
+
+    La version va FIJADA y con SRI. Al subir el SDK hay que actualizar la
+    version y el hash (SHA-384 del archivo exacto).
+  -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"
+    integrity="sha384-TcHRA3zBbn+Lexh5n+Oil4guNPOS3rjNDpGRAN46u/s/mB2IZ50ceC6TYDU2yvgK"
+    crossorigin="anonymous"></script>
+</body>
+</html>

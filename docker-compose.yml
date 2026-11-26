@@ -1,0 +1,9 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        SUPABASE_URL: ${SUPABASE_URL:?falta SUPABASE_URL}
+        SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?falta SUPABASE_PUBLISHABLE_KEY}
+    ports:
+      - "8080:80"
