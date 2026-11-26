@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_config.dart';
 import 'core/supabase_client.dart';
-
 
 /// Igual que en el portal del psicologo: no se devuelve un `String` suelto
 /// porque la pantalla tiene que diferenciar credenciales malas, correo sin
@@ -173,13 +173,9 @@ class PacienteAuth {
     } on AuthException catch (e) {
       return _traducirRegistro(e);
     } on AppConfigException {
-      return const ResultadoRegistro.error(
-        'Sin conexion a la base de datos.',
-      );
+      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
     } catch (_) {
-      return const ResultadoRegistro.error(
-        'Sin conexion a la base de datos.',
-      );
+      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
     }
   }
 
@@ -219,9 +215,7 @@ class PacienteAuth {
         mensaje.contains('failed to fetch') ||
         mensaje.contains('network') ||
         mensaje.contains('timeout')) {
-      return const ResultadoRegistro.error(
-        'Sin conexion a la base de datos.',
-      );
+      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
     }
     return const ResultadoRegistro.error(
       'No pudimos crear la cuenta. Intenta de nuevo.',
@@ -350,7 +344,9 @@ class PacienteAuth {
       };
       final ruta =
           '$uid/avatar-${DateTime.now().millisecondsSinceEpoch}.${ext.isEmpty ? 'jpg' : ext}';
-      await cliente.storage.from('avatares').uploadBinary(
+      await cliente.storage
+          .from('avatares')
+          .uploadBinary(
             ruta,
             bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
             fileOptions: FileOptions(contentType: tipo, upsert: true),
@@ -397,7 +393,8 @@ class PacienteAuth {
       return true;
     } on PostgrestException catch (e) {
       _errorSeguimiento = switch (e.code) {
-        '23503' => 'Tu perfil de paciente no esta completo. Contacta con soporte.',
+        '23503' =>
+          'Tu perfil de paciente no esta completo. Contacta con soporte.',
         '42501' => 'Tu sesion expiro. Vuelve a iniciar sesion.',
         _ => 'No se pudo guardar tu animo. Intenta de nuevo.',
       };
@@ -447,6 +444,48 @@ class PacienteAuth {
     }
   }
 
+  /// Marca como completada la tarea asignada que corresponde a un test.
+  Future<bool> completarTareaTest(String nombreTest) async {
+    try {
+      final idPaciente = await idPacienteActual();
+      if (idPaciente == null) return false;
+      final cliente = await _cliente;
+      final filas = await cliente
+          .from('tarea_recomendada')
+          .select('id_tarea,descripcion,completada')
+          .eq('id_paciente', idPaciente);
+      final tareas = (filas as List).cast<Map<String, dynamic>>();
+      final descripcionEsperada = 'Completar test ${nombreTest.trim()}'
+          .toLowerCase();
+      var encontrada = false;
+
+      for (final tarea in tareas) {
+        final descripcion = '${tarea['descripcion'] ?? ''}'
+            .trim()
+            .toLowerCase();
+        if (descripcion != descripcionEsperada) continue;
+        encontrada = true;
+        if (tarea['completada'] == true) continue;
+
+        final idTarea = tarea['id_tarea'];
+        if (idTarea == null) return false;
+        final actualizada = await cliente
+            .from('tarea_recomendada')
+            .update(<String, dynamic>{'completada': true})
+            .eq('id_tarea', idTarea)
+            .eq('id_paciente', idPaciente)
+            .select('id_tarea');
+        if ((actualizada as List).isEmpty) return false;
+      }
+
+      return encontrada;
+    } on AppConfigException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Catalogo de psicologos disponibles (tabla `psicologo`, lectura publica).
   ///
   /// El NOMBRE del profesional vive en `usuario` y el paciente no puede leerlo
@@ -482,7 +521,7 @@ class PacienteAuth {
   /// Sin la migracion devuelve un mapa vacio y las pantallas conservan su
   /// aviso honesto en vez de inventar nombres.
   Future<Map<int, ({String nombre, String? avatarUrl})>>
-      directorioPsicologos() async {
+  directorioPsicologos() async {
     try {
       final cliente = await _cliente;
       final filas = await cliente.rpc('directorio_psicologos');
@@ -505,25 +544,97 @@ class PacienteAuth {
     }
   }
 
-  /// Ultimos mensajes del hilo con el psicologo de la cita.
+  /// Todos los mensajes visibles del paciente, para agrupar sus conversaciones.
+  Future<List<Map<String, dynamic>>> mensajesPaciente() async {
+    final idPaciente = await idPacienteActual();
+    if (idPaciente == null) return const [];
+    final cliente = await _cliente;
+    final filas = await cliente
+        .from('mensaje_chat')
+        .select('id_psicologo,autor_id,texto,fecha_envio')
+        .eq('id_paciente', idPaciente)
+        .order('fecha_envio', ascending: false);
+    return (filas as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Ultimos mensajes del hilo con un psicologo.
   Future<List<Map<String, dynamic>>> mensajesCon(int idPsicologo) async {
-    try {
-      final idPaciente = await idPacienteActual();
-      if (idPaciente == null) return const [];
-      final cliente = await _cliente;
-      final filas = await cliente
-          .from('mensaje_chat')
-          .select('id_mensaje,autor_id,texto,fecha_envio')
-          .eq('id_psicologo', idPsicologo)
-          .eq('id_paciente', idPaciente)
-          .order('fecha_envio', ascending: false)
-          .limit(50);
-      return (filas as List).cast<Map<String, dynamic>>().reversed.toList();
-    } on AppConfigException {
-      return const [];
-    } catch (_) {
-      return const [];
+    final idPaciente = await idPacienteActual();
+    if (idPaciente == null) return const [];
+    final cliente = await _cliente;
+    final filas = await cliente
+        .from('mensaje_chat')
+        .select('id_mensaje,id_paciente,autor_id,texto,fecha_envio')
+        .eq('id_psicologo', idPsicologo)
+        .eq('id_paciente', idPaciente)
+        .order('fecha_envio', ascending: false)
+        .limit(50);
+    return (filas as List).cast<Map<String, dynamic>>().reversed.toList();
+  }
+
+  /// Cambios en tiempo real de los mensajes recibidos por el paciente.
+  ///
+  /// La suscripcion se cancela cuando el consumidor deja de escuchar el
+  /// stream. Se filtran mensajes enviados por el propio paciente.
+  Stream<Map<String, dynamic>> mensajesEntrantes() {
+    late final StreamController<Map<String, dynamic>> controller;
+    RealtimeChannel? channel;
+    var cancelRequested = false;
+
+    Future<void> subscribe() async {
+      try {
+        final idPaciente = await idPacienteActual();
+        if (cancelRequested || idPaciente == null) return;
+        final cliente = await _cliente;
+        if (cancelRequested) return;
+
+        final candidate = cliente
+            .channel(
+              'paciente-mensajes-$idPaciente-'
+              '${DateTime.now().microsecondsSinceEpoch}',
+            )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.insert,
+              schema: 'public',
+              table: 'mensaje_chat',
+              filter: PostgresChangeFilter(
+                type: PostgresChangeFilterType.eq,
+                column: 'id_paciente',
+                value: idPaciente.toString(),
+              ),
+              callback: (payload) {
+                if (cancelRequested || controller.isClosed) return;
+                final mensaje = payload.newRecord;
+                final autorId = int.tryParse('${mensaje['autor_id'] ?? ''}');
+                if (autorId == idPaciente) return;
+                controller.add(Map<String, dynamic>.from(mensaje));
+              },
+            );
+        if (cancelRequested) return;
+        channel = candidate.subscribe((status, error) {
+          if (cancelRequested || controller.isClosed) return;
+          if (status == RealtimeSubscribeStatus.channelError ||
+              status == RealtimeSubscribeStatus.timedOut) {
+            controller.addError(
+              error ?? StateError('No se pudo suscribir a los mensajes.'),
+            );
+          }
+        });
+      } catch (error, stackTrace) {
+        if (!cancelRequested && !controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
     }
+
+    controller = StreamController<Map<String, dynamic>>(
+      onListen: () => unawaited(subscribe()),
+      onCancel: () async {
+        cancelRequested = true;
+        await channel?.unsubscribe();
+      },
+    );
+    return controller.stream;
   }
 
   /// Envia un mensaje breve al psicologo. La RLS exige que el autor sea el
@@ -582,18 +693,22 @@ class PacienteAuth {
     try {
       final idPaciente = await idPacienteActual();
       if (idPaciente == null) {
-        _errorReserva = 'Tu cuenta no tiene perfil de paciente. '
+        _errorReserva =
+            'Tu cuenta no tiene perfil de paciente. '
             'Vuelve a iniciar sesion.';
         return null;
       }
       final cliente = await _cliente;
-      final cita = await cliente.rpc('reservar_slot', params: <String, dynamic>{
-        'p_id_paciente': idPaciente,
-        'p_id_psicologo': idPsicologo,
-        'p_id_disponibilidad': idDisponibilidad,
-        'p_modalidad': modalidad,
-        'p_motivo_consulta': motivo,
-      });
+      final cita = await cliente.rpc(
+        'reservar_slot',
+        params: <String, dynamic>{
+          'p_id_paciente': idPaciente,
+          'p_id_psicologo': idPsicologo,
+          'p_id_disponibilidad': idDisponibilidad,
+          'p_modalidad': modalidad,
+          'p_motivo_consulta': motivo,
+        },
+      );
       if (cita is Map<String, dynamic>) return cita;
       if (cita is List && cita.isNotEmpty && cita.first is Map) {
         return (cita.first as Map).cast<String, dynamic>();
@@ -604,7 +719,8 @@ class PacienteAuth {
       _errorReserva = switch (e.code) {
         '23505' => 'Ese horario acaba de ser reservado. Elige otro.',
         '23514' => 'Ese horario ya no esta disponible. Elige otro.',
-        '23503' => 'Tu perfil de paciente no esta completo. Contacta con soporte.',
+        '23503' =>
+          'Tu perfil de paciente no esta completo. Contacta con soporte.',
         '42501' => 'Tu sesion expiro. Vuelve a iniciar sesion.',
         _ => 'No se pudo reservar la cita. Intenta de nuevo.',
       };
@@ -624,7 +740,9 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('cita')
-          .select('id_cita,id_psicologo,fecha_hora,estado_cita,modalidad,motivo_consulta')
+          .select(
+            'id_cita,id_psicologo,fecha_hora,estado_cita,modalidad,motivo_consulta',
+          )
           .order('fecha_hora', ascending: false);
       return (filas as List).cast<Map<String, dynamic>>();
     } on AppConfigException {
@@ -640,15 +758,17 @@ class PacienteAuth {
   /// Lee solo la fila propia (las politicas RLS lo permiten). Devuelve `null`
   /// si no hay sesion, no hay perfil o falla la red: la pantalla decide que
   /// mostrar en ese caso (estado vacio o de error).
-  Future<({
-    String nombre,
-    String correo,
-    bool requiereAcompanante,
-    String documento,
-    String telefono,
-    String direccion
-  })?>
-      datosPaciente() async {
+  Future<
+    ({
+      String nombre,
+      String correo,
+      bool requiereAcompanante,
+      String documento,
+      String telefono,
+      String direccion,
+    })?
+  >
+  datosPaciente() async {
     try {
       final cliente = await _cliente;
       final id = await cliente.rpc('mi_usuario_id');
@@ -688,8 +808,7 @@ class PacienteAuth {
             .eq('id_paciente', idInt)
             .maybeSingle();
         if (filaPaciente != null) {
-          requiere =
-              (filaPaciente['requiere_acompanante'] as bool?) ?? false;
+          requiere = (filaPaciente['requiere_acompanante'] as bool?) ?? false;
         }
       } catch (_) {}
 
@@ -761,7 +880,9 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('acompanante')
-          .select('id_acompanante,nombre,parentesco,telefono,email,documento,usuario_id')
+          .select(
+            'id_acompanante,nombre,parentesco,telefono,email,documento,usuario_id',
+          )
           .eq('id_paciente', id)
           .limit(1);
       final lista = (filas as List).cast<Map<String, dynamic>>();
@@ -781,7 +902,9 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('tarea_recomendada')
-          .select('id_tarea,descripcion,fecha_asignacion,completada,id_psicologo')
+          .select(
+            'id_tarea,descripcion,fecha_asignacion,completada,id_psicologo',
+          )
           .eq('id_paciente', id)
           .order('fecha_asignacion', ascending: false);
       return (filas as List).cast<Map<String, dynamic>>();
@@ -800,7 +923,10 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('evaluacion_paciente')
-          .select('id_evaluacion,puntaje_total,completado,fecha_completado,test_psicometrico(nombre)')
+          .select(
+            'id_evaluacion,fecha_completado,respuestas,'
+            'test_psicometrico(nombre,codigo)',
+          )
           .eq('id_paciente', id)
           .order('fecha_completado', ascending: false);
       return (filas as List).cast<Map<String, dynamic>>();
@@ -884,17 +1010,21 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('cita')
-          .select('id_cita,id_psicologo,fecha_hora,estado_cita,modalidad,motivo_consulta')
+          .select(
+            'id_cita,id_psicologo,fecha_hora,estado_cita,modalidad,motivo_consulta',
+          )
           .eq('id_paciente', id)
           .order('fecha_hora', ascending: false);
       final lista = (filas as List).cast<Map<String, dynamic>>();
       if (lista.isEmpty) return null;
       final ahora = DateTime.now();
-      final futuras = lista.where((c) {
-        final f = DateTime.tryParse('${c['fecha_hora']}');
-        return f != null && !f.isBefore(ahora);
-      }).toList()
-        ..sort((a, b) => '${a['fecha_hora']}'.compareTo('${b['fecha_hora']}'));
+      final futuras =
+          lista.where((c) {
+            final f = DateTime.tryParse('${c['fecha_hora']}');
+            return f != null && !f.isBefore(ahora);
+          }).toList()..sort(
+            (a, b) => '${a['fecha_hora']}'.compareTo('${b['fecha_hora']}'),
+          );
       return futuras.isNotEmpty ? futuras.first : null;
     } on AppConfigException {
       return null;
@@ -911,7 +1041,9 @@ class PacienteAuth {
       final cliente = await _cliente;
       final filas = await cliente
           .from('seguimiento_diario')
-          .select('id_registro,nivel_animo,es_critico,comentarios,fecha,fecha_registro')
+          .select(
+            'id_registro,nivel_animo,es_critico,comentarios,fecha,fecha_registro',
+          )
           .eq('id_paciente', id)
           .order('fecha', ascending: false)
           .limit(7);

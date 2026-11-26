@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +16,7 @@ import 'package:mindjora_pacientes/paciente_sala.dart';
 import 'package:mindjora_pacientes/paciente_registro.dart';
 import 'package:mindjora_pacientes/paciente_tests.dart';
 import 'package:mindjora_pacientes/paciente_acompanante.dart';
+import 'package:mindjora_pacientes/paciente_chats.dart';
 
 /// Directorio que devolvería el RPC cuando la migración está aplicada.
 const Map<int, ({String nombre, String? avatarUrl})> directorioPrueba = {
@@ -29,6 +32,8 @@ class FakePacienteAuth extends PacienteAuth {
     this.cita,
     this.tareas = const [],
     this.evaluaciones = const [],
+    this.mensajes = const [],
+    this.mensajesStream = const Stream<Map<String, dynamic>>.empty(),
     this.acompanante,
     this.empresa,
     this.seguimiento = const [],
@@ -37,6 +42,7 @@ class FakePacienteAuth extends PacienteAuth {
     this.disponibilidad = const {},
     this.reserva,
     this.fallarEvaluacion = false,
+    this.evaluacionEnEspera,
     this.citas = const [],
     this.permisos = const [],
     this.sinDatos = false,
@@ -53,6 +59,8 @@ class FakePacienteAuth extends PacienteAuth {
   final Map<String, dynamic>? cita;
   final List<Map<String, dynamic>> tareas;
   final List<Map<String, dynamic>> evaluaciones;
+  final List<Map<String, dynamic>> mensajes;
+  final Stream<Map<String, dynamic>> mensajesStream;
   final Map<String, dynamic>? acompanante;
   final Map<String, dynamic>? empresa;
   final List<Map<String, dynamic>> seguimiento;
@@ -67,8 +75,9 @@ class FakePacienteAuth extends PacienteAuth {
     bool requiereAcompanante,
     String documento,
     String telefono,
-    String direccion
-  })? datosCustom;
+    String direccion,
+  })?
+  datosCustom;
 
   /// Nombres del directorio del RPC; vacio = sin migracion aplicada.
   final Map<int, ({String nombre, String? avatarUrl})> directorio;
@@ -97,15 +106,17 @@ class FakePacienteAuth extends PacienteAuth {
   Future<void> cerrarSesion() async {}
 
   @override
-  Future<({
-    String nombre,
-    String correo,
-    bool requiereAcompanante,
-    String documento,
-    String telefono,
-    String direccion
-  })?>
-      datosPaciente() async {
+  Future<
+    ({
+      String nombre,
+      String correo,
+      bool requiereAcompanante,
+      String documento,
+      String telefono,
+      String direccion,
+    })?
+  >
+  datosPaciente() async {
     cargasDatosPaciente++;
     if (sinDatos) return null;
     return datosCustom ??
@@ -130,11 +141,22 @@ class FakePacienteAuth extends PacienteAuth {
 
   @override
   Future<Map<int, ({String nombre, String? avatarUrl})>>
-      directorioPsicologos() async => directorio;
+  directorioPsicologos() async => directorio;
 
   @override
   Future<List<Map<String, dynamic>>> mensajesCon(int idPsicologo) async =>
-      const [];
+      mensajes
+          .where(
+            (mensaje) =>
+                int.tryParse('${mensaje['id_psicologo'] ?? ''}') == idPsicologo,
+          )
+          .toList();
+
+  @override
+  Future<List<Map<String, dynamic>>> mensajesPaciente() async => mensajes;
+
+  @override
+  Stream<Map<String, dynamic>> mensajesEntrantes() => mensajesStream;
 
   @override
   Future<bool> enviarMensaje(int idPsicologo, String texto) async {
@@ -173,7 +195,8 @@ class FakePacienteAuth extends PacienteAuth {
   Future<List<Map<String, dynamic>>> tareasPropias() async => tareas;
 
   @override
-  Future<List<Map<String, dynamic>>> evaluacionesPropias() async => evaluaciones;
+  Future<List<Map<String, dynamic>>> evaluacionesPropias() async =>
+      <Map<String, dynamic>>[...evaluaciones, ...evaluacionesRegistradas];
 
   @override
   Future<Map<String, dynamic>?> acompanantePropio() async => acompanante;
@@ -236,9 +259,13 @@ class FakePacienteAuth extends PacienteAuth {
 
   /// Si se fuerza a false, `guardarEvaluacion` simula un fallo de red.
   final bool fallarEvaluacion;
+  final Completer<bool>? evaluacionEnEspera;
 
   /// Evaluaciones guardadas por `guardarEvaluacion`.
   final List<String> evaluacionesGuardadas = <String>[];
+  final List<Map<String, dynamic>> evaluacionesRegistradas =
+      <Map<String, dynamic>>[];
+  final List<String> tareasTestCompletadas = <String>[];
 
   String? ultimoComentario;
 
@@ -259,8 +286,6 @@ class FakePacienteAuth extends PacienteAuth {
   @override
   Future<List<Map<String, dynamic>>> citasPropias() async => citas;
 
-
-
   @override
   Future<bool> guardarEvaluacion({
     required String nombreTest,
@@ -268,7 +293,32 @@ class FakePacienteAuth extends PacienteAuth {
     List<int?>? respuestas,
   }) async {
     evaluacionesGuardadas.add(nombreTest);
-    return !fallarEvaluacion;
+    final espera = evaluacionEnEspera;
+    final guardado = espera == null ? !fallarEvaluacion : await espera.future;
+    if (!guardado) return false;
+    evaluacionesRegistradas.add(<String, dynamic>{
+      'completado': false,
+      'fecha_completado': DateTime.now().toIso8601String(),
+      'respuestas': respuestas,
+      'test_psicometrico': <String, dynamic>{'nombre': nombreTest},
+    });
+    return true;
+  }
+
+  @override
+  Future<bool> completarTareaTest(String nombreTest) async {
+    final descripcionEsperada = 'Completar test $nombreTest'.toLowerCase();
+    final tareasEncontradas = tareas.where(
+      (tarea) =>
+          '${tarea['descripcion'] ?? ''}'.trim().toLowerCase() ==
+          descripcionEsperada,
+    );
+    if (tareasEncontradas.isEmpty) return false;
+    for (final tarea in tareasEncontradas) {
+      tarea['completada'] = true;
+    }
+    tareasTestCompletadas.add(nombreTest);
+    return true;
   }
 }
 
@@ -292,9 +342,7 @@ void main() {
   Future<void> pumpDashboard(WidgetTester tester, [PacienteAuth? auth]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteInicioPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacienteInicioPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
@@ -305,22 +353,20 @@ void main() {
   Future<void> pumpProfile(WidgetTester tester, [PacienteAuth? auth]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacientePerfilPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacientePerfilPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
   }
 
   /// Monta solo el directorio de especialistas (cuenta demo por defecto).
-  Future<void> pumpSpecialists(WidgetTester tester,
-      [PacienteAuth? auth]) async {
+  Future<void> pumpSpecialists(
+    WidgetTester tester, [
+    PacienteAuth? auth,
+  ]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteAgendaPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacienteAgendaPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
@@ -334,9 +380,7 @@ void main() {
   Future<void> pumpDiary(WidgetTester tester, [PacienteAuth? auth]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteDiarioPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacienteDiarioPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
@@ -347,9 +391,7 @@ void main() {
   Future<void> pumpTests(WidgetTester tester, [PacienteAuth? auth]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteTestsPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacienteTestsPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
@@ -369,9 +411,7 @@ void main() {
   Future<void> pumpSala(WidgetTester tester, [PacienteAuth? auth]) async {
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteSalaPage(auth: auth ?? FakePacienteAuth()),
-      ),
+      MaterialApp(home: PacienteSalaPage(auth: auth ?? FakePacienteAuth())),
     );
     await tester.pump();
     await tester.pump();
@@ -422,10 +462,7 @@ void main() {
     final auth = FakePacienteAuth(demo: false, haySesion: true);
     expect(await auth.haySesionDePaciente(), isTrue);
 
-    await pumpOnPhone(
-      tester,
-      MindjoraApp(auth: auth, sesionActiva: true),
-    );
+    await pumpOnPhone(tester, MindjoraApp(auth: auth, sesionActiva: true));
     await tester.pumpAndSettle();
 
     expect(find.text('PORTAL PACIENTE'), findsNothing);
@@ -443,33 +480,34 @@ void main() {
     expect((logo.image as AssetImage).assetName, 'assets/images/logo.jpg');
   });
 
-  testWidgets('el login marca la casilla de sesión y el ojo revela la contraseña', (
-    WidgetTester tester,
-  ) async {
-    await pumpOnPhone(tester, const MindjoraApp());
+  testWidgets(
+    'el login marca la casilla de sesión y el ojo revela la contraseña',
+    (WidgetTester tester) async {
+      await pumpOnPhone(tester, const MindjoraApp());
 
-    // Llega marcada, como en el diseño, y la fila entera la alterna.
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
-    await tester.tap(find.text('Recordar sesión en este dispositivo'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+      // Llega marcada, como en el diseño, y la fila entera la alterna.
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+      await tester.tap(find.text('Recordar sesión en este dispositivo'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
 
-    await tester.enterText(find.byType(TextFormField).last, 'contrasena123');
-    await tester.pumpAndSettle();
-    // El campo de contraseña es un `EditableText`: ahí vive la propiedad.
-    expect(
-      tester.widget<EditableText>(find.byType(EditableText).last).obscureText,
-      isTrue,
-    );
+      await tester.enterText(find.byType(TextFormField).last, 'contrasena123');
+      await tester.pumpAndSettle();
+      // El campo de contraseña es un `EditableText`: ahí vive la propiedad.
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText).last).obscureText,
+        isTrue,
+      );
 
-    await tester.tap(find.byTooltip('Mostrar contraseña'));
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<EditableText>(find.byType(EditableText).last).obscureText,
-      isFalse,
-    );
-    expect(tester.takeException(), isNull);
-  });
+      await tester.tap(find.byTooltip('Mostrar contraseña'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText).last).obscureText,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('el enlace de alta abre el registro de paciente', (
     WidgetTester tester,
@@ -491,17 +529,17 @@ void main() {
   testWidgets('el registro muestra los datos de cuenta y al acompañante', (
     WidgetTester tester,
   ) async {
-    await pumpOnPhone(
-      tester,
-      const MaterialApp(home: PacienteRegistroPage()),
-    );
+    await pumpOnPhone(tester, const MaterialApp(home: PacienteRegistroPage()));
 
     expect(find.text('Registro de Paciente'), findsOneWidget);
     expect(find.text('Paso 1 de 2: Datos de Cuenta'), findsOneWidget);
     expect(find.text('Información del Paciente'), findsOneWidget);
     expect(find.text(' (Tarjeta / Cédula / DNI)'), findsOneWidget);
     expect(find.text('Crear Contraseña'), findsOneWidget);
-    expect(find.text('Reglas: alfanumérico, mínimo 8 caracteres'), findsOneWidget);
+    expect(
+      find.text('Reglas: alfanumérico, mínimo 8 caracteres'),
+      findsOneWidget,
+    );
     expect(find.text('¿Requiere registro de acompañante?'), findsOneWidget);
     expect(find.text('Datos de la persona autorizada'), findsOneWidget);
     expect(find.text('Relación con el paciente'), findsOneWidget);
@@ -512,10 +550,7 @@ void main() {
   testWidgets('al apagar el acompañante se oculta su bloque', (
     WidgetTester tester,
   ) async {
-    await pumpOnPhone(
-      tester,
-      const MaterialApp(home: PacienteRegistroPage()),
-    );
+    await pumpOnPhone(tester, const MaterialApp(home: PacienteRegistroPage()));
 
     await tester.ensureVisible(find.byType(Switch));
     await tester.pumpAndSettle();
@@ -532,7 +567,10 @@ void main() {
     final fake = FakePacienteAuth();
     await pumpOnPhone(tester, MindjoraApp(auth: fake));
 
-    await tester.enterText(find.byType(TextFormField).first, 'karen@correo.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'karen@correo.com',
+    );
     await tester.enterText(find.byType(TextFormField).last, 'contrasena123');
     await tester.tap(find.text('Iniciar Sesión como Paciente'));
     await tester.pumpAndSettle();
@@ -556,7 +594,13 @@ void main() {
     expect(find.text('¿Cómo te sientes en este momento?'), findsOneWidget);
 
     // Los cinco niveles de ánimo, con «En calma» seleccionado de inicio.
-    for (final mood in ['Radiante', 'En calma', 'Neutral', 'Sobrecarga', 'Inquietud']) {
+    for (final mood in [
+      'Radiante',
+      'En calma',
+      'Neutral',
+      'Sobrecarga',
+      'Inquietud',
+    ]) {
       expect(find.text(mood), findsOneWidget);
     }
 
@@ -567,18 +611,24 @@ void main() {
     expect(find.text('Psicóloga Clínica • Enfoque TCC'), findsOneWidget);
     expect(find.text('Hoy, 18:30 hrs'), findsOneWidget);
     expect(find.text('50 min'), findsOneWidget);
-    expect(find.text('Test pre-consulta completado correctamente'), findsOneWidget);
+    expect(
+      find.text('Test pre-consulta completado correctamente'),
+      findsOneWidget,
+    );
     expect(find.text('Entrar a Sala Virtual'), findsOneWidget);
     expect(find.text('Detalles de la cita'), findsOneWidget);
 
     // Estado y evaluaciones.
     expect(find.text('Septiembre 2026'), findsOneWidget);
-    expect(find.text('Ánimo (PHQ-9)'), findsOneWidget);
-    expect(find.text('6 / 27'), findsOneWidget);
-    expect(find.text('Leve'), findsOneWidget);
-    expect(find.text('Ansiedad (GAD-7)'), findsOneWidget);
-    expect(find.text('4 / 21'), findsOneWidget);
-    expect(find.text('Mínima'), findsOneWidget);
+    expect(
+      find.text(
+        'Los resultados de tus tests son confidenciales y serán revisados '
+        'por tu psicólogo.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('6 / 27'), findsNothing);
+    expect(find.text('4 / 21'), findsNothing);
     expect(find.text('Batería psicométrica periódica'), findsOneWidget);
     expect(find.text('En 4 días'), findsOneWidget);
 
@@ -613,23 +663,21 @@ void main() {
       'modalidad': 'VIDEO',
       'motivo_consulta': 'Sesión de prueba',
     };
-    final auth = FakePacienteAuth(demo: false, citas: <Map<String, dynamic>>[cita]);
+    final auth = FakePacienteAuth(
+      demo: false,
+      citas: <Map<String, dynamic>>[cita],
+    );
 
     await pumpOnPhone(
       tester,
-      MaterialApp(
-        home: PacienteNotificacionesPage(auth: auth),
-      ),
+      MaterialApp(home: PacienteNotificacionesPage(auth: auth)),
     );
     await tester.pump();
     await tester.pump();
     expect(find.text('ALERTA PRIORITARIA • INASISTENCIA'), findsNothing);
     expect(find.textContaining('Cita confirmada'), findsOneWidget);
 
-    await pumpOnPhone(
-      tester,
-      MaterialApp(home: PacienteSalaPage(auth: auth)),
-    );
+    await pumpOnPhone(tester, MaterialApp(home: PacienteSalaPage(auth: auth)));
     await tester.pump();
     await tester.pump();
     expect(find.text('Dra. Yani Casiani'), findsOneWidget);
@@ -687,26 +735,17 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el sol de la cabecera alterna entre claro y oscuro', (
+  testWidgets('el panel no muestra botones de tema ni acceso al perfil', (
     WidgetTester tester,
   ) async {
     await pumpDashboard(tester);
 
     expect(panelTheme(tester).theme.brightness, Brightness.light);
     expect(panelTheme(tester).tokens.canvas, AppColors.canvas);
-
-    await tester.tap(find.byTooltip('Cambiar a modo oscuro'));
-    await tester.pumpAndSettle();
-
-    expect(panelTheme(tester).theme.brightness, Brightness.dark);
-    expect(panelTheme(tester).tokens.canvas, AppColors.darkCanvas);
-    expect(panelTheme(tester).tokens.card, AppColors.darkCard);
-
-    await tester.tap(find.byTooltip('Cambiar a modo claro'));
-    await tester.pumpAndSettle();
-
-    expect(panelTheme(tester).theme.brightness, Brightness.light);
-    expect(panelTheme(tester).tokens.canvas, AppColors.canvas);
+    expect(find.byTooltip('Cambiar a modo oscuro'), findsNothing);
+    expect(find.byTooltip('Cambiar a modo claro'), findsNothing);
+    expect(find.byTooltip('Mi perfil'), findsNothing);
+    expect(find.byTooltip('Notificaciones'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -746,7 +785,10 @@ void main() {
     expect(find.text('Dra. Yani Casiani'), findsOneWidget);
     expect(find.text('4.9'), findsOneWidget);
     expect(find.text('(128)'), findsOneWidget);
-    expect(find.text('Psicóloga Clínica Sanitaria • 8 años exp.'), findsOneWidget);
+    expect(
+      find.text('Psicóloga Clínica Sanitaria • 8 años exp.'),
+      findsOneWidget,
+    );
     expect(find.text('Convenio Empresa Disponible'), findsOneWidget);
     expect(find.text('Disponibilidad hoy (Mar 25):'), findsOneWidget);
     expect(find.text('Zona horaria local'), findsOneWidget);
@@ -918,37 +960,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el detalle real muestra la tarifa de la base, sin datos de pago inventados', (
-    WidgetTester tester,
-  ) async {
-    await pumpOnPhone(
-      tester,
-      MaterialApp(
-        home: PacienteDetalleSesionPage(
-          auth: FakePacienteAuth(demo: false),
-          reserva: SesionReserva(
-            specialistName: 'Profesional #19',
-            initials: 'P19',
-            role: 'Psicólogo/a de la base',
-            rating: '',
-            reviews: '',
-            focus: 'General',
-            dateLabel: 'Profesional #19',
-            startTime: '19:00',
-            idPsicologo: 19,
-            idDisponibilidad: 9,
-            tarifa: 50000,
+  testWidgets(
+    'el detalle real muestra la tarifa de la base, sin datos de pago inventados',
+    (WidgetTester tester) async {
+      await pumpOnPhone(
+        tester,
+        MaterialApp(
+          home: PacienteDetalleSesionPage(
+            auth: FakePacienteAuth(demo: false),
+            reserva: SesionReserva(
+              specialistName: 'Profesional #19',
+              initials: 'P19',
+              role: 'Psicólogo/a de la base',
+              rating: '',
+              reviews: '',
+              focus: 'General',
+              dateLabel: 'Profesional #19',
+              startTime: '19:00',
+              idPsicologo: 19,
+              idDisponibilidad: 9,
+              tarifa: 50000,
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text(r'$50.000 COP'), findsOneWidget);
-    expect(find.text('Tarifa de la consulta'), findsOneWidget);
-    expect(find.text('InnovaTech S.A.'), findsNothing);
-    expect(find.text('Beneficio Corporativo Activo'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text(r'$50.000 COP'), findsOneWidget);
+      expect(find.text('Tarifa de la consulta'), findsOneWidget);
+      expect(find.text('InnovaTech S.A.'), findsNothing);
+      expect(find.text('Beneficio Corporativo Activo'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('reservar de verdad avisa el fallo y no finge éxito', (
     WidgetTester tester,
@@ -979,9 +1022,7 @@ void main() {
     await tester.tap(find.text('Confirmar y Congelar Cita'));
     await tester.pumpAndSettle();
     expect(
-      find.text(
-        'No se pudo reservar la cita. El horario puede estar tomado.',
-      ),
+      find.text('No se pudo reservar la cita. El horario puede estar tomado.'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -1240,7 +1281,10 @@ void main() {
     // devolvía al login en vez de al panel.
     final fake = FakePacienteAuth();
     await pumpOnPhone(tester, MindjoraApp(auth: fake));
-    await tester.enterText(find.byType(TextFormField).first, 'karen@correo.com');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'karen@correo.com',
+    );
     await tester.enterText(find.byType(TextFormField).last, 'contrasena123');
     await tester.tap(find.text('Iniciar Sesión como Paciente'));
     await tester.pumpAndSettle();
@@ -1265,15 +1309,8 @@ void main() {
     expect(inkOf(tester, 'Perfil'), AppColors.brand);
     expect(tester.takeException(), isNull);
 
-    await tester.scrollUntilVisible(
-      find.text('Portal del Acompañante'),
-      300,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.tap(find.text('Portal del Acompañante'));
-    await tester.pumpAndSettle();
-    expect(find.text('Portal de acompañamiento'), findsOneWidget);
-    expect(find.text('Información protegida'), findsOneWidget);
+    expect(find.text('Red de Apoyo y Acompañante'), findsNothing);
+    expect(find.text('Portal del Acompañante'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1328,7 +1365,7 @@ void main() {
 
   // --- Diario emocional ---------------------------------------------------
 
-  testWidgets('el diario muestra la semana, el registro, las tareas y la evolución', (
+  testWidgets('el diario muestra la semana, el registro y la evolución', (
     WidgetTester tester,
   ) async {
     await pumpDiary(tester);
@@ -1374,21 +1411,14 @@ void main() {
     expect(find.text('Anotar pensamientos del momento...'), findsOneWidget);
     expect(find.text('Guardar Registro de Hoy'), findsOneWidget);
 
-    // Tareas asignadas, con la doctora del panel y del directorio.
-    expect(find.text('Tareas Asignadas'), findsOneWidget);
-    expect(find.text('Dra. Yani Casiani'), findsOneWidget);
-    expect(find.text('Terapia Cognitivo-Conductual'), findsOneWidget);
+    // Las tareas se gestionan desde el panel, no desde el diario.
+    expect(find.text('Tareas Asignadas'), findsNothing);
     expect(
       find.text('Registro de Pensamiento Disfuncional (Modelo ABC)'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('8 minutos aprox.'), findsOneWidget);
-    expect(find.text('Comenzar'), findsOneWidget);
-    expect(find.text('Caminata consciente y grounding'), findsOneWidget);
-    expect(find.text('Completado hoy a las 11:00 hrs'), findsOneWidget);
-    expect(find.text('Higiene de sueño y descanso'), findsOneWidget);
-    expect(find.text('Recomendada por Dra. Yani Casiani'), findsOneWidget);
-    expect(find.text('Leer ficha'), findsOneWidget);
+    expect(find.text('Caminata consciente y grounding'), findsNothing);
+    expect(find.text('Higiene de sueño y descanso'), findsNothing);
 
     // Evolución, con el mismo eje que la tira de la semana.
     expect(find.text('Evolución del Estado de Ánimo'), findsOneWidget);
@@ -1454,33 +1484,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('las pestañas llevan al diario, a la agenda y de vuelta al panel', (
-    WidgetTester tester,
-  ) async {
-    await pumpDashboard(tester);
+  testWidgets(
+    'las pestañas llevan al diario, a la agenda y de vuelta al panel',
+    (WidgetTester tester) async {
+      await pumpDashboard(tester);
 
-    await tester.tap(find.text('Diario'));
-    await tester.pumpAndSettle();
-    expect(find.text('Diario Emocional y Actividades'), findsOneWidget);
+      await tester.tap(find.text('Diario'));
+      await tester.pumpAndSettle();
+      expect(find.text('Diario Emocional y Actividades'), findsOneWidget);
 
-    // «Agenda» sustituye al diario en vez de apilarse sobre él.
-    await tester.tap(find.text('Agenda'));
-    await tester.pumpAndSettle();
-    expect(find.text('Especialistas verificados'), findsOneWidget);
-    expect(find.text('Diario Emocional y Actividades'), findsNothing);
+      // «Agenda» sustituye al diario en vez de apilarse sobre él.
+      await tester.tap(find.text('Agenda'));
+      await tester.pumpAndSettle();
+      expect(find.text('Especialistas verificados'), findsOneWidget);
+      expect(find.text('Diario Emocional y Actividades'), findsNothing);
 
-    await tester.tap(find.text('Diario'));
-    await tester.pumpAndSettle();
-    expect(find.text('Diario Emocional y Actividades'), findsOneWidget);
-    expect(find.text('Especialistas verificados'), findsNothing);
+      await tester.tap(find.text('Diario'));
+      await tester.pumpAndSettle();
+      expect(find.text('Diario Emocional y Actividades'), findsOneWidget);
+      expect(find.text('Especialistas verificados'), findsNothing);
 
-    // «Inicio» deshace un solo empuje: queda el panel, no la agenda.
-    await tester.tap(find.text('Inicio'));
-    await tester.pumpAndSettle();
-    expect(find.text('Hola, Karen Lucía'), findsOneWidget);
-    expect(find.text('Diario Emocional y Actividades'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      // «Inicio» deshace un solo empuje: queda el panel, no la agenda.
+      await tester.tap(find.text('Inicio'));
+      await tester.pumpAndSettle();
+      expect(find.text('Hola, Karen Lucía'), findsOneWidget);
+      expect(find.text('Diario Emocional y Actividades'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('la pestaña Agenda del panel abre el directorio', (
     WidgetTester tester,
@@ -1510,23 +1541,160 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el modo real del panel avisa donde antes había datos inventados', (
+  testWidgets(
+    'el modo real del panel avisa donde antes había datos inventados',
+    (WidgetTester tester) async {
+      await pumpDashboard(tester, FakePacienteAuth(demo: false));
+
+      // Sin cita futura, la sección de cita desaparece por completo.
+      expect(find.text('Aún no tienes citas programadas.'), findsNothing);
+      expect(find.text('Cita Programada'), findsNothing);
+      expect(
+        find.text('Aún no tienes evaluaciones registradas.'),
+        findsOneWidget,
+      );
+      expect(find.text('No tienes tareas pendientes.'), findsOneWidget);
+      expect(find.text('Aún no tienes acompañante vinculado.'), findsOneWidget);
+
+      // Nada de la captura.
+      expect(find.text('Dra. Yani Casiani'), findsNothing);
+      expect(find.text('Septiembre 2026'), findsNothing);
+      expect(find.textContaining('Oscar Flerez'), findsNothing);
+      expect(find.text('Sin conexion a la base de datos.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'las respuestas completas cierran las tareas aunque el estado no se actualice',
+    (WidgetTester tester) async {
+      final tests = ['AQ-10', 'GAD-7', 'PHQ-9'];
+      final totalPreguntas = [10, 7, 9];
+      await pumpDashboard(
+        tester,
+        FakePacienteAuth(
+          demo: false,
+          tareas: [
+            for (var i = 0; i < tests.length; i++)
+              <String, dynamic>{
+                'id_tarea': i + 1,
+                'descripcion': 'Completar test ${tests[i]}',
+                'completada': false,
+                'fecha_asignacion': '2026-11-24T10:00:00Z',
+              },
+          ],
+          evaluaciones: [
+            for (var i = 0; i < tests.length; i++)
+              <String, dynamic>{
+                'id_evaluacion': i + 1,
+                'completado': false,
+                'fecha_completado': '2026-11-25T10:00:00Z',
+                'respuestas': List<int>.filled(totalPreguntas[i], 0),
+                'test_psicometrico': <String, dynamic>{'nombre': tests[i]},
+              },
+          ],
+        ),
+      );
+
+      expect(find.text('No tienes tareas pendientes.'), findsOneWidget);
+      expect(find.textContaining('Completar test '), findsNothing);
+      expect(find.text('Pendiente'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'una evaluación anterior a la asignación no completa una tarea nueva',
+    (WidgetTester tester) async {
+      await pumpDashboard(
+        tester,
+        FakePacienteAuth(
+          demo: false,
+          tareas: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'descripcion': 'Completar test PHQ-9',
+              'completada': false,
+              'fecha_asignacion': '2026-11-26T10:00:00Z',
+            },
+          ],
+          evaluaciones: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'completado': true,
+              'fecha_completado': '2026-11-25T10:00:00Z',
+              'respuestas': List<int>.filled(9, 0),
+              'test_psicometrico': <String, dynamic>{'nombre': 'PHQ-9'},
+            },
+          ],
+        ),
+      );
+
+      expect(find.text('Completar test PHQ-9'), findsOneWidget);
+      expect(find.text('Pendiente'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'una respuesta sin contestar mantiene pendiente la tarea del test',
+    (WidgetTester tester) async {
+      await pumpDashboard(
+        tester,
+        FakePacienteAuth(
+          demo: false,
+          tareas: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'descripcion': 'Completar test PHQ-9',
+              'completada': true,
+              'fecha_asignacion': '2026-11-24T10:00:00Z',
+            },
+          ],
+          evaluaciones: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'completado': true,
+              'fecha_completado': '2026-11-25T10:00:00Z',
+              'respuestas': <int?>[0, 0, 0, 0, 0, 0, 0, 0, null],
+              'test_psicometrico': <String, dynamic>{'nombre': 'PHQ-9'},
+            },
+          ],
+        ),
+      );
+
+      expect(find.text('Completar test PHQ-9'), findsOneWidget);
+      expect(find.text('Pendiente'), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('una lista incompleta de respuestas no cierra el test', (
     WidgetTester tester,
   ) async {
-    await pumpDashboard(tester, FakePacienteAuth(demo: false));
+    await pumpDashboard(
+      tester,
+      FakePacienteAuth(
+        demo: false,
+        tareas: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'descripcion': 'Completar test PHQ-9',
+            'completada': true,
+            'fecha_asignacion': '2026-11-24T10:00:00Z',
+          },
+        ],
+        evaluaciones: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'completado': true,
+            'fecha_completado': '2026-11-25T10:00:00Z',
+            'respuestas': List<int>.filled(8, 0),
+            'test_psicometrico': <String, dynamic>{
+              'nombre': 'PHQ-9',
+              'codigo': 'PHQ-9',
+            },
+          },
+        ],
+      ),
+    );
 
-    // Sin cita futura, la sección de cita desaparece por completo.
-    expect(find.text('Aún no tienes citas programadas.'), findsNothing);
-    expect(find.text('Cita Programada'), findsNothing);
-    expect(find.text('Aún no tienes evaluaciones registradas.'), findsOneWidget);
-    expect(find.text('Aún no tienes tareas asignadas.'), findsOneWidget);
-    expect(find.text('Aún no tienes acompañante vinculado.'), findsOneWidget);
-
-    // Nada de la captura.
-    expect(find.text('Dra. Yani Casiani'), findsNothing);
-    expect(find.text('Septiembre 2026'), findsNothing);
-    expect(find.textContaining('Oscar Flerez'), findsNothing);
-    expect(find.text('Sin conexion a la base de datos.'), findsNothing);
+    expect(find.text('Completar test PHQ-9'), findsOneWidget);
+    expect(find.text('No tienes tareas pendientes.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1550,28 +1718,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el panel pide completar información y guarda teléfono y dirección', (
-    WidgetTester tester,
-  ) async {
-    final auth = FakePacienteAuth(demo: false);
-    await pumpDashboard(tester, auth);
+  testWidgets(
+    'el panel pide completar información y guarda teléfono y dirección',
+    (WidgetTester tester) async {
+      final auth = FakePacienteAuth(demo: false);
+      await pumpDashboard(tester, auth);
 
-    expect(find.text('Completar información'), findsNWidgets(2));
-    await tester.tap(find.text('Completar información').last);
-    await tester.pumpAndSettle();
+      expect(find.text('Completar información'), findsNWidgets(2));
+      await tester.tap(find.text('Completar información').last);
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), '3001234567');
-    await tester.enterText(find.byType(TextFormField).at(1), 'Calle 1 # 2-3');
-    await tester.tap(find.text('Guardar'));
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(0), '3001234567');
+      await tester.enterText(find.byType(TextFormField).at(1), 'Calle 1 # 2-3');
+      await tester.tap(find.text('Guardar'));
+      await tester.pumpAndSettle();
 
-    expect(
-      auth.contactosGuardados.single,
-      (telefono: '3001234567', direccion: 'Calle 1 # 2-3'),
-    );
-    expect(find.text('Completar información'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(auth.contactosGuardados.single, (
+        telefono: '3001234567',
+        direccion: 'Calle 1 # 2-3',
+      ));
+      expect(find.text('Completar información'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('el modo real del panel pinta lo que trae la base', (
     WidgetTester tester,
@@ -1596,6 +1765,8 @@ void main() {
         <String, dynamic>{
           'id_evaluacion': 2,
           'puntaje_total': 11,
+          'completado': true,
+          'respuestas': List<int>.filled(14, 0),
           'test_psicometrico': <String, dynamic>{
             'nombre': 'Escala de ansiedad de Hamilton',
           },
@@ -1615,10 +1786,98 @@ void main() {
     expect(find.text('Confirmada'), findsOneWidget);
     expect(find.text('Nombre del profesional no disponible.'), findsOneWidget);
     expect(find.text('Escala de ansiedad de Hamilton'), findsOneWidget);
-    expect(find.text('11'), findsOneWidget);
+    expect(find.text('11'), findsNothing);
+    expect(find.text('Completado'), findsOneWidget);
     expect(find.text('Completar ficha de admisión'), findsOneWidget);
     expect(find.text('Oscar Pérez'), findsOneWidget);
     expect(find.text('Aún no tienes citas programadas.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('la bandeja agrupa los chats por psicólogo', (
+    WidgetTester tester,
+  ) async {
+    final auth = FakePacienteAuth(
+      demo: false,
+      mensajes: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id_psicologo': 19,
+          'id_paciente': 1,
+          'autor_id': 1,
+          'texto': 'Primer mensaje',
+          'fecha_envio': '2026-11-24T10:00:00Z',
+        },
+        <String, dynamic>{
+          'id_psicologo': 22,
+          'id_paciente': 1,
+          'autor_id': 22,
+          'texto': 'Hablemos mañana',
+          'fecha_envio': '2026-11-24T11:00:00Z',
+        },
+        <String, dynamic>{
+          'id_psicologo': 19,
+          'id_paciente': 1,
+          'autor_id': 19,
+          'texto': 'Última respuesta',
+          'fecha_envio': '2026-11-24T12:00:00Z',
+        },
+      ],
+    );
+    await pumpDashboard(tester, auth);
+    await tester.tap(find.byTooltip('Chats'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PacienteChatsPage), findsOneWidget);
+    expect(find.text('Dra. Yani Casiani'), findsOneWidget);
+    expect(find.text('Dr. Andrés Rojas'), findsOneWidget);
+    expect(find.text('Última respuesta'), findsOneWidget);
+    expect(find.text('Primer mensaje'), findsNothing);
+
+    await tester.tap(find.text('Dra. Yani Casiani'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mensaje a Dra. Yani Casiani'), findsOneWidget);
+    expect(find.text('Primer mensaje'), findsOneWidget);
+    expect(find.text('Última respuesta'), findsNWidgets(2));
+    final mensajePaciente = tester.widget<Align>(
+      find
+          .ancestor(
+            of: find.text('Primer mensaje'),
+            matching: find.byType(Align),
+          )
+          .first,
+    );
+    final mensajePsicologo = tester.widget<Align>(
+      find
+          .ancestor(
+            of: find.text('Última respuesta'),
+            matching: find.byType(Align),
+          )
+          .first,
+    );
+    expect(mensajePaciente.alignment, Alignment.centerRight);
+    expect(mensajePsicologo.alignment, Alignment.centerLeft);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('un mensaje entrante genera una notificación en el panel', (
+    WidgetTester tester,
+  ) async {
+    final stream = StreamController<Map<String, dynamic>>.broadcast();
+    addTearDown(stream.close);
+    await pumpDashboard(
+      tester,
+      FakePacienteAuth(demo: false, mensajesStream: stream.stream),
+    );
+
+    stream.add(<String, dynamic>{
+      'id_psicologo': 19,
+      'autor_id': 19,
+      'texto': 'Hola',
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nuevo mensaje de Dra. Yani Casiani.'), findsOneWidget);
+    expect(find.byTooltip('Chats, mensajes nuevos'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1631,6 +1890,8 @@ void main() {
     expect(find.text('Ficha #SV-2049'), findsOneWidget);
     expect(find.text('InnovaTech Solutions S.A.'), findsOneWidget);
     expect(find.text('Oscar Flerez'), findsOneWidget);
+    expect(find.text('Gestión y Documentación'), findsNothing);
+    expect(find.text('MINDJORA • PORTAL DEL PACIENTE • V2.4.1'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1642,7 +1903,20 @@ void main() {
     expect(find.text('Sin convenio corporativo'), findsOneWidget);
     expect(find.text('Aún no tienes convenio asociado.'), findsOneWidget);
     expect(find.text('Aún no hay indicadores de tu proceso.'), findsOneWidget);
-    expect(find.text('Aún no tienes acompañante vinculado.'), findsOneWidget);
+    expect(find.text('Red de Apoyo y Acompañante'), findsNothing);
+    expect(
+      find.text('Configurar Notificaciones del Acompañante'),
+      findsNothing,
+    );
+    expect(find.text('Portal del Acompañante'), findsNothing);
+    expect(find.text('Desvincular Acompañante'), findsNothing);
+    expect(find.text('Gestión y Documentación'), findsNothing);
+    expect(find.text('MINDJORA • PORTAL DEL PACIENTE • V2.4.1'), findsNothing);
+    expect(
+      find.textContaining('Gestión de perfil y red de apoyo'),
+      findsNothing,
+    );
+    expect(find.text('Cerrar Sesión'), findsOneWidget);
     expect(find.text('RUT 14.520.118-2'), findsNothing);
     expect(find.text('Ficha #SV-2049'), findsNothing);
     expect(find.text('InnovaTech Solutions S.A.'), findsNothing);
@@ -1671,65 +1945,67 @@ void main() {
     expect(find.text('Consultorio Demo Mindjora'), findsWidgets);
     expect(find.text('DEMO-MINDJORA'), findsWidgets);
     expect(find.text('Oscar Pérez'), findsOneWidget);
+    expect(find.text('Red de Apoyo y Acompañante'), findsOneWidget);
+    expect(find.text('Portal del Acompañante'), findsOneWidget);
     expect(find.text('Aún no tienes convenio asociado.'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   // --- Modo demo y modo real: diario y tests -------------------------------
 
-  testWidgets('la cuenta demo del diario conserva los datos de la captura', (
+  testWidgets('la cuenta demo del diario conserva solo sus datos emocionales', (
     WidgetTester tester,
   ) async {
     await pumpDiary(tester, FakePacienteAuth(demo: true));
 
     expect(find.text('Fase 4 · Acompañamiento Activo'), findsOneWidget);
     expect(find.text('5 días constantes'), findsOneWidget);
-    expect(find.text('Dra. Yani Casiani'), findsOneWidget);
-    expect(
-      find.text('Registro de Pensamiento Disfuncional (Modelo ABC)'),
-      findsOneWidget,
-    );
-    expect(find.text('Caminata consciente y grounding'), findsOneWidget);
-    expect(find.text('Higiene de sueño y descanso'), findsOneWidget);
-    expect(find.text('Aún no tienes tareas asignadas.'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('el modo real del diario avisa donde antes había datos inventados', (
-    WidgetTester tester,
-  ) async {
-    await pumpDiary(tester, FakePacienteAuth(demo: false));
-
-    expect(find.text('Aún no tienes tareas asignadas.'), findsOneWidget);
-    // La tarjeta de la semana y la de la evolución, ambas.
-    expect(find.text('Aún no hay registros esta semana.'), findsNWidgets(2));
-
-    // Nada de la captura.
-    expect(find.text('Fase 4 · Acompañamiento Activo'), findsNothing);
-    expect(find.text('5 días constantes'), findsNothing);
+    expect(find.text('Tareas Asignadas'), findsNothing);
     expect(find.text('Dra. Yani Casiani'), findsNothing);
     expect(
       find.text('Registro de Pensamiento Disfuncional (Modelo ABC)'),
       findsNothing,
     );
-    expect(find.text('Terapia Cognitivo-Conductual'), findsNothing);
     expect(find.text('Caminata consciente y grounding'), findsNothing);
     expect(find.text('Higiene de sueño y descanso'), findsNothing);
-    expect(find.text('8 minutos aprox.'), findsNothing);
-    expect(find.text('Comenzar'), findsNothing);
-    expect(find.text('Leer ficha'), findsNothing);
-    expect(
-      find.textContaining('18%', findRichText: true),
-      findsNothing,
-    );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('el modo real del diario pinta tareas y registros reales', (
+  testWidgets(
+    'el modo real del diario avisa donde antes había datos inventados',
+    (WidgetTester tester) async {
+      await pumpDiary(tester, FakePacienteAuth(demo: false));
+
+      expect(find.text('Tareas Asignadas'), findsNothing);
+      expect(find.text('Aún no tienes tareas asignadas.'), findsNothing);
+      // La tarjeta de la semana y la de la evolución, ambas.
+      expect(find.text('Aún no hay registros esta semana.'), findsNWidgets(2));
+
+      // Nada de la captura.
+      expect(find.text('Fase 4 · Acompañamiento Activo'), findsNothing);
+      expect(find.text('5 días constantes'), findsNothing);
+      expect(find.text('Dra. Yani Casiani'), findsNothing);
+      expect(
+        find.text('Registro de Pensamiento Disfuncional (Modelo ABC)'),
+        findsNothing,
+      );
+      expect(find.text('Terapia Cognitivo-Conductual'), findsNothing);
+      expect(find.text('Caminata consciente y grounding'), findsNothing);
+      expect(find.text('Higiene de sueño y descanso'), findsNothing);
+      expect(find.text('8 minutos aprox.'), findsNothing);
+      expect(find.text('Comenzar'), findsNothing);
+      expect(find.text('Leer ficha'), findsNothing);
+      expect(find.textContaining('18%', findRichText: true), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('el diario real oculta tareas y muestra registros reales', (
     WidgetTester tester,
   ) async {
     final hoy = DateTime.now();
-    final fecha = '${hoy.year}-'
+    final fecha =
+        '${hoy.year}-'
         '${hoy.month.toString().padLeft(2, '0')}-'
         '${hoy.day.toString().padLeft(2, '0')}';
     final fake = FakePacienteAuth(
@@ -1748,9 +2024,9 @@ void main() {
 
     await pumpDiary(tester, fake);
 
-    expect(find.text('Completar ficha de sueño'), findsOneWidget);
-    expect(find.text('Pendiente'), findsOneWidget);
-    expect(find.text('Aún no tienes tareas asignadas.'), findsNothing);
+    expect(find.text('Completar ficha de sueño'), findsNothing);
+    expect(find.text('Pendiente'), findsNothing);
+    expect(find.text('Tareas Asignadas'), findsNothing);
     // Solo hoy registrado: la racha es de un día.
     expect(find.text('1 día con registro'), findsOneWidget);
     expect(find.text('Aún no hay registros esta semana.'), findsNothing);
@@ -1796,7 +2072,7 @@ void main() {
     // La tarea mandó el nombre y abrió la pantalla con esa pestaña.
     expect(find.text('Pregunta 1 de 9'), findsOneWidget);
     expect(inkOf(tester, 'PHQ-9 (Depresión)'), AppColors.brandDark);
-    expect(inkOf(tester, 'GAD-7 (Ansiedad)'), AppColors.inkSoft);
+    expect(find.text('GAD-7 (Ansiedad)'), findsNothing);
     // El `auth` del panel viajó a la pantalla de tests.
     expect(fake.cargasCatalogoTests, 1);
     expect(tester.takeException(), isNull);
@@ -1831,8 +2107,14 @@ void main() {
     final fake = FakePacienteAuth(
       demo: false,
       tareas: <Map<String, dynamic>>[
-        <String, dynamic>{'descripcion': 'Completar test PHQ-9', 'completada': false},
-        <String, dynamic>{'descripcion': 'Completar test GAD-7', 'completada': false},
+        <String, dynamic>{
+          'descripcion': 'Completar test PHQ-9',
+          'completada': false,
+        },
+        <String, dynamic>{
+          'descripcion': 'Completar test GAD-7',
+          'completada': false,
+        },
       ],
       catalogo: <Map<String, dynamic>>[
         <String, dynamic>{
@@ -1860,7 +2142,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('solo los tests asignados por el psicólogo están habilitados', (
+  testWidgets('solo se muestran los tests asignados por el psicólogo', (
     WidgetTester tester,
   ) async {
     await pumpTests(
@@ -1868,13 +2150,31 @@ void main() {
       FakePacienteAuth(
         demo: false,
         tareas: <Map<String, dynamic>>[
-          <String, dynamic>{'descripcion': 'Completar test PHQ-9', 'completada': false},
-          <String, dynamic>{'descripcion': 'Completar test PSS-14', 'completada': false},
+          <String, dynamic>{
+            'descripcion': 'Completar test PHQ-9',
+            'completada': false,
+          },
+          <String, dynamic>{
+            'descripcion': 'Completar test PSS-14',
+            'completada': false,
+          },
         ],
         catalogo: <Map<String, dynamic>>[
-          <String, dynamic>{'id_test': 4, 'nombre': 'PHQ-9', 'descripcion': 'Depresión'},
-          <String, dynamic>{'id_test': 5, 'nombre': 'GAD-7', 'descripcion': 'Ansiedad'},
-          <String, dynamic>{'id_test': 6, 'nombre': 'PSS-14', 'descripcion': 'Estrés'},
+          <String, dynamic>{
+            'id_test': 4,
+            'nombre': 'PHQ-9',
+            'descripcion': 'Depresión',
+          },
+          <String, dynamic>{
+            'id_test': 5,
+            'nombre': 'GAD-7',
+            'descripcion': 'Ansiedad',
+          },
+          <String, dynamic>{
+            'id_test': 6,
+            'nombre': 'PSS-14',
+            'descripcion': 'Estrés',
+          },
         ],
       ),
     );
@@ -1882,16 +2182,12 @@ void main() {
     // El asignado con ítems se puede responder.
     expect(find.text('Pregunta 1 de 9'), findsOneWidget);
 
-    // El del catálogo que nadie asignó queda deshabilitado.
-    await tester.ensureVisible(find.text('GAD-7 (Ansiedad)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('GAD-7 (Ansiedad)'));
-    await tester.pumpAndSettle();
+    // Los tests no asignados ni siquiera aparecen en la batería.
+    expect(find.text('GAD-7 (Ansiedad)'), findsNothing);
     expect(
       find.text('Tu psicólogo aún no ha asignado este test.'),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('Pregunta 1 de 9'), findsNothing);
 
     // El asignado con ítems propios también se puede responder.
     await tester.ensureVisible(find.text('PSS-14 (Estrés)'));
@@ -1899,10 +2195,6 @@ void main() {
     await tester.tap(find.text('PSS-14 (Estrés)'));
     await tester.pumpAndSettle();
     expect(find.text('Pregunta 1 de 14'), findsOneWidget);
-    expect(
-      find.text('Tu psicólogo aún no ha asignado este test.'),
-      findsNothing,
-    );
     expect(tester.takeException(), isNull);
   });
 
@@ -1914,14 +2206,16 @@ void main() {
       FakePacienteAuth(
         demo: false,
         catalogo: <Map<String, dynamic>>[
-          <String, dynamic>{'id_test': 4, 'nombre': 'PHQ-9', 'descripcion': 'Depresión'},
+          <String, dynamic>{
+            'id_test': 4,
+            'nombre': 'PHQ-9',
+            'descripcion': 'Depresión',
+          },
         ],
       ),
     );
-    expect(
-      find.text('Tu psicólogo aún no ha asignado este test.'),
-      findsOneWidget,
-    );
+    expect(find.text('Aún no hay tests disponibles.'), findsOneWidget);
+    expect(find.text('PHQ-9 (Depresión)'), findsNothing);
     expect(find.text('Pregunta 1 de 9'), findsNothing);
     expect(find.text('Siguiente Pregunta'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -1971,7 +2265,10 @@ void main() {
         'motivo_consulta': 'Primera sesión',
       },
       tareas: <Map<String, dynamic>>[
-        <String, dynamic>{'descripcion': 'Completar test PHQ-9', 'completada': false},
+        <String, dynamic>{
+          'descripcion': 'Completar test PHQ-9',
+          'completada': false,
+        },
         <String, dynamic>{
           'descripcion': 'Completar test Test de sueño',
           'completada': false,
@@ -2014,6 +2311,140 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('ocho pestañas de tests no desbordan horizontalmente', (
+    WidgetTester tester,
+  ) async {
+    final nombres = List<String>.generate(8, (i) => 'Test ${i + 1}');
+    final fake = FakePacienteAuth(
+      demo: false,
+      tareas: <Map<String, dynamic>>[
+        for (final nombre in nombres)
+          <String, dynamic>{
+            'descripcion': 'Completar test $nombre',
+            'completada': true,
+          },
+      ],
+      catalogo: <Map<String, dynamic>>[
+        for (var i = 0; i < nombres.length; i++)
+          <String, dynamic>{
+            'id_test': i + 1,
+            'nombre': nombres[i],
+            'descripcion': 'Evaluación psicológica',
+          },
+      ],
+      evaluaciones: <Map<String, dynamic>>[
+        for (var i = 0; i < nombres.length; i++)
+          <String, dynamic>{
+            'id_evaluacion': i + 1,
+            'completado': true,
+            'respuestas': <int>[0],
+            'test_psicometrico': <String, dynamic>{'nombre': nombres[i]},
+          },
+      ],
+    );
+    await pumpOnPhone(
+      tester,
+      MaterialApp(
+        home: PacienteTestsPage(auth: fake, testInicial: 'Test 8'),
+      ),
+    );
+    tester.view.physicalSize = const Size(384, 853);
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Test 8'), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+    final selectedTabRect = tester.getRect(find.text('Test 8').first);
+    expect(selectedTabRect.left, greaterThanOrEqualTo(0));
+    expect(selectedTabRect.right, lessThanOrEqualTo(384));
+    expect(
+      tester.widget<Text>(find.text('Test 8').first).style?.color,
+      AppColors.brandDark,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('el cuestionario no desborda en una pantalla compacta', (
+    WidgetTester tester,
+  ) async {
+    addTearDown(() {
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+      tester.view.resetViewPadding();
+    });
+    final fake = FakePacienteAuth(
+      demo: false,
+      tareas: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'descripcion': 'Completar test PHQ-9',
+          'completada': false,
+        },
+      ],
+      catalogo: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id_test': 1,
+          'nombre': 'PHQ-9',
+          'descripcion': 'Depresión',
+        },
+      ],
+    );
+    await pumpTests(tester, fake);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+    tester.view.physicalSize = const Size(320, 568);
+    await tester.pumpAndSettle();
+
+    for (var i = 0; i < 8; i++) {
+      await tester.ensureVisible(find.text('Para nada').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Para nada').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Siguiente Pregunta'));
+      await tester.tap(find.text('Siguiente Pregunta'));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.ensureVisible(find.text('Para nada').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Para nada').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Finalizar cuestionario'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('abrir el test desde el panel no produce desbordamiento', (
+    WidgetTester tester,
+  ) async {
+    final fake = FakePacienteAuth(
+      demo: false,
+      tareas: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'descripcion': 'Completar test PHQ-9',
+          'completada': false,
+        },
+      ],
+      catalogo: <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id_test': 1,
+          'nombre': 'PHQ-9',
+          'descripcion': 'Depresión',
+        },
+      ],
+    );
+    await pumpDashboard(tester, fake);
+    tester.view.physicalSize = const Size(384, 853);
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Completar test PHQ-9'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Completar test PHQ-9'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pregunta 1 de 9'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('si falla el guardado del test no se dice que fue enviado', (
     WidgetTester tester,
   ) async {
@@ -2021,7 +2452,10 @@ void main() {
       demo: false,
       fallarEvaluacion: true,
       tareas: <Map<String, dynamic>>[
-        <String, dynamic>{'descripcion': 'Completar test PHQ-9', 'completada': false},
+        <String, dynamic>{
+          'descripcion': 'Completar test PHQ-9',
+          'completada': false,
+        },
       ],
       catalogo: <Map<String, dynamic>>[
         <String, dynamic>{
@@ -2037,7 +2471,9 @@ void main() {
     for (var i = 0; i < 9; i++) {
       await tester.tap(find.text('Para nada').last);
       await tester.pumpAndSettle();
-      final boton = find.text(i == 8 ? 'Finalizar cuestionario' : 'Siguiente Pregunta');
+      final boton = find.text(
+        i == 8 ? 'Finalizar cuestionario' : 'Siguiente Pregunta',
+      );
       await tester.ensureVisible(boton);
       await tester.pumpAndSettle();
       await tester.tap(boton);
@@ -2048,167 +2484,221 @@ void main() {
       find.text('No se pudo guardar el resultado. Inténtalo de nuevo.'),
       findsOneWidget,
     );
-    expect(find.text('Tests enviados. Tu terapeuta los revisará antes de la sesión.'), findsNothing);
+    expect(
+      find.text(
+        'Tests enviados. Tu terapeuta los revisará antes de la sesión.',
+      ),
+      findsNothing,
+    );
     expect(fake.evaluacionesGuardadas, contains('PHQ-9'));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('al terminar un test se muestra la banda y el aviso del item 9', (
-    WidgetTester tester,
-  ) async {
-    await pumpTests(
-      tester,
-      FakePacienteAuth(
+  testWidgets(
+    'al completar un test se cierra la tarea y no se muestra el resultado',
+    (WidgetTester tester) async {
+      final guardarEvaluacion = Completer<bool>();
+      final fake = FakePacienteAuth(
         demo: false,
+        evaluacionEnEspera: guardarEvaluacion,
         tareas: <Map<String, dynamic>>[
-          <String, dynamic>{'descripcion': 'Completar test PHQ-9', 'completada': false},
+          <String, dynamic>{
+            'descripcion': 'Completar test PHQ-9',
+            'completada': false,
+          },
         ],
         catalogo: <Map<String, dynamic>>[
-          <String, dynamic>{'id_test': 1, 'nombre': 'PHQ-9', 'descripcion': 'Depresión'},
+          <String, dynamic>{
+            'id_test': 1,
+            'nombre': 'PHQ-9',
+            'descripcion': 'Depresión',
+          },
         ],
-      ),
-    );
+      );
+      await pumpDashboard(tester, fake);
+      await tester.ensureVisible(find.text('Completar test PHQ-9'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Completar test PHQ-9'));
+      await tester.pumpAndSettle();
 
-    for (var i = 0; i < 9; i++) {
-      final opcion = i == 8 ? 'Varios días' : 'Para nada';
-      await tester.tap(find.text(opcion).last);
-      await tester.pumpAndSettle();
-      final boton = find.text(i == 8 ? 'Finalizar cuestionario' : 'Siguiente Pregunta');
-      await tester.ensureVisible(boton);
-      await tester.pumpAndSettle();
-      await tester.tap(boton);
-      await tester.pumpAndSettle();
-    }
+      for (var i = 0; i < 9; i++) {
+        final opcion = i == 8 ? 'Varios días' : 'Para nada';
+        await tester.tap(find.text(opcion).last);
+        await tester.pumpAndSettle();
+        final boton = find.text(
+          i == 8 ? 'Finalizar cuestionario' : 'Siguiente Pregunta',
+        );
+        await tester.ensureVisible(boton);
+        await tester.pumpAndSettle();
+        if (i == 8) {
+          await tester.tap(boton);
+          await tester.pump();
+          expect(find.text('Enviando...'), findsOneWidget);
 
-    expect(find.text('Resultado de PHQ-9'), findsOneWidget);
-    expect(find.text('Puntaje: 1 / 27'), findsOneWidget);
-    expect(find.text('Depresión mínima'), findsOneWidget);
-    expect(
-      find.text('Tu terapeuta revisará personalmente este resultado.'),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
+          await tester.tap(find.text('Enviando...'));
+          await tester.pump();
+          expect(
+            fake.evaluacionesGuardadas
+                .where((nombre) => nombre == 'PHQ-9')
+                .length,
+            1,
+          );
+          guardarEvaluacion.complete(true);
+        } else {
+          await tester.tap(boton);
+        }
+        await tester.pumpAndSettle();
+      }
+
+      expect(fake.evaluacionesGuardadas, contains('PHQ-9'));
+      expect(fake.tareasTestCompletadas, contains('PHQ-9'));
+      expect(fake.tareas.single['completada'], isTrue);
+      expect(find.text('No tienes tareas pendientes.'), findsOneWidget);
+      expect(find.text('Completar test PHQ-9'), findsNothing);
+      expect(find.text('Completado'), findsOneWidget);
+      expect(find.text('Pendiente'), findsNothing);
+      expect(find.text('Resultado de PHQ-9'), findsNothing);
+      expect(find.text('Puntaje: 1 / 27'), findsNothing);
+      expect(find.text('Depresión mínima'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
-      'el portal del acompañante en modo demo conserva los datos de la captura',
-      (WidgetTester tester) async {
-    await pumpCompanion(tester, FakePacienteAuth(demo: true));
+    'el portal del acompañante en modo demo conserva los datos de la captura',
+    (WidgetTester tester) async {
+      await pumpCompanion(tester, FakePacienteAuth(demo: true));
 
-    expect(find.text('Sin conexion a la base de datos.'), findsOneWidget);
-    expect(find.text('Consulta autorizada para Oscar Flerez'), findsOneWidget);
-    expect(find.text('Karen Lucía'), findsOneWidget);
-    expect(find.text('KL'), findsOneWidget);
-    expect(find.text('Hoy, 18:30 - 19:20'), findsOneWidget);
-    expect(
-      find.text('Sesión en línea con la Dra. Yani Casiani'),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets(
-      'el portal del acompañante en modo real muestra los datos de la base',
-      (WidgetTester tester) async {
-    final auth = FakePacienteAuth(
-      demo: false,
-      acompanante: <String, dynamic>{
-        'nombre': 'Roberto Gómez',
-        'parentesco': 'Hermano',
-      },
-      cita: <String, dynamic>{
-        'id_cita': 1,
-        'id_psicologo': 22,
-        'fecha_hora': '2030-05-15T16:00:00+00:00',
-        'estado_cita': 'CONFIRMADA',
-      },
-    );
-    await pumpCompanion(tester, auth);
-
-    expect(find.text('Sin conexion a la base de datos.'), findsNothing);
-    expect(find.text('Consulta autorizada para Roberto Gómez'), findsOneWidget);
-    expect(find.text('Karen Lucía'), findsOneWidget);
-    expect(find.text('KL'), findsOneWidget);
-    expect(find.textContaining('15/05, 16:00 hrs'), findsOneWidget);
-    expect(find.text('Sesión con Dr. Andrés Rojas'), findsOneWidget);
-    expect(find.text('Oscar Flerez'), findsNothing);
-    expect(find.text('Dra. Yani Casiani'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('el portal del acompañante en modo real avisa cuando no hay datos',
-      (WidgetTester tester) async {
-    final auth = FakePacienteAuth(
-      demo: false,
-      sinDatos: true,
-    );
-    await pumpCompanion(tester, auth);
-
-    expect(find.text('Sin conexion a la base de datos.'), findsNothing);
-    expect(find.text('Aún no tienes acompañante vinculado.'), findsOneWidget);
-    expect(find.text('No se encontraron datos del paciente.'), findsOneWidget);
-    expect(find.text('Aún no tienes citas programadas.'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Sin conexion a la base de datos.'), findsOneWidget);
+      expect(
+        find.text('Consulta autorizada para Oscar Flerez'),
+        findsOneWidget,
+      );
+      expect(find.text('Karen Lucía'), findsOneWidget);
+      expect(find.text('KL'), findsOneWidget);
+      expect(find.text('Hoy, 18:30 - 19:20'), findsOneWidget);
+      expect(
+        find.text('Sesión en línea con la Dra. Yani Casiani'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
-      'la matriz de permisos del perfil en modo real muestra los permisos activos y vínculo registrado',
-      (WidgetTester tester) async {
-    final auth = FakePacienteAuth(
-      demo: false,
-      acompanante: <String, dynamic>{
-        'nombre': 'Oscar Flerez',
-        'parentesco': 'Padre',
-      },
-      permisos: <Map<String, dynamic>>[
-        <String, dynamic>{
-          'tipo_recurso': 'ALERTA',
-          'nivel': 'LECTURA',
-          'ambito': 'PROPIO',
+    'el portal del acompañante en modo real muestra los datos de la base',
+    (WidgetTester tester) async {
+      final auth = FakePacienteAuth(
+        demo: false,
+        acompanante: <String, dynamic>{
+          'nombre': 'Roberto Gómez',
+          'parentesco': 'Hermano',
         },
-        <String, dynamic>{
-          'tipo_recurso': 'CITA',
-          'nivel': 'LECTURA',
-          'ambito': 'PROPIO',
+        cita: <String, dynamic>{
+          'id_cita': 1,
+          'id_psicologo': 22,
+          'fecha_hora': '2030-05-15T16:00:00+00:00',
+          'estado_cita': 'CONFIRMADA',
         },
-      ],
-    );
-    await pumpProfile(tester, auth);
+      );
+      await pumpCompanion(tester, auth);
 
-    expect(find.text('Vínculo registrado'), findsOneWidget);
-    expect(find.text('VINCULACIÓN ACTIVA (OPER 1)'), findsNothing);
-    expect(
-      find.text('Alertas de inasistencia o contingencia (OPER 1)'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Calendario de próximas sesiones y horarios'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('Notas de terapia, diario íntimo y tests clínicos (OPER 2)'),
-      findsNothing,
-    );
-    expect(
-      find.text('Configuración de seguridad y acceso a la cuenta'),
-      findsOneWidget,
-    );
-    expect(find.text('Protección biométrica y 2FA activo'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Sin conexion a la base de datos.'), findsNothing);
+      expect(
+        find.text('Consulta autorizada para Roberto Gómez'),
+        findsOneWidget,
+      );
+      expect(find.text('Karen Lucía'), findsOneWidget);
+      expect(find.text('KL'), findsOneWidget);
+      expect(find.textContaining('15/05, 16:00 hrs'), findsOneWidget);
+      expect(find.text('Sesión con Dr. Andrés Rojas'), findsOneWidget);
+      expect(find.text('Oscar Flerez'), findsNothing);
+      expect(find.text('Dra. Yani Casiani'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
-      'la matriz de permisos del perfil en modo real avisa si no hay permisos',
-      (WidgetTester tester) async {
-    final auth = FakePacienteAuth(
-      demo: false,
-      permisos: const <Map<String, dynamic>>[],
-    );
-    await pumpProfile(tester, auth);
+    'el portal del acompañante en modo real avisa cuando no hay datos',
+    (WidgetTester tester) async {
+      final auth = FakePacienteAuth(demo: false, sinDatos: true);
+      await pumpCompanion(tester, auth);
 
-    expect(find.text('Aún no tienes permisos registrados.'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Sin conexion a la base de datos.'), findsNothing);
+      expect(find.text('Aún no tienes acompañante vinculado.'), findsOneWidget);
+      expect(
+        find.text('No se encontraron datos del paciente.'),
+        findsOneWidget,
+      );
+      expect(find.text('Aún no tienes citas programadas.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'la matriz de permisos del perfil en modo real muestra los permisos activos y vínculo registrado',
+    (WidgetTester tester) async {
+      final auth = FakePacienteAuth(
+        demo: false,
+        acompanante: <String, dynamic>{
+          'nombre': 'Oscar Flerez',
+          'parentesco': 'Padre',
+        },
+        permisos: <Map<String, dynamic>>[
+          <String, dynamic>{
+            'tipo_recurso': 'ALERTA',
+            'nivel': 'LECTURA',
+            'ambito': 'PROPIO',
+          },
+          <String, dynamic>{
+            'tipo_recurso': 'CITA',
+            'nivel': 'LECTURA',
+            'ambito': 'PROPIO',
+          },
+        ],
+      );
+      await pumpProfile(tester, auth);
+
+      expect(find.text('Vínculo registrado'), findsOneWidget);
+      expect(find.text('VINCULACIÓN ACTIVA (OPER 1)'), findsNothing);
+      expect(
+        find.text('Alertas de inasistencia o contingencia (OPER 1)'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Calendario de próximas sesiones y horarios'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Notas de terapia, diario íntimo y tests clínicos (OPER 2)'),
+        findsNothing,
+      );
+      expect(
+        find.text('Configuración de seguridad y acceso a la cuenta'),
+        findsNothing,
+      );
+      expect(find.text('Protección biométrica y 2FA activo'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'la matriz de permisos del perfil en modo real avisa si no hay permisos',
+    (WidgetTester tester) async {
+      final auth = FakePacienteAuth(
+        demo: false,
+        acompanante: <String, dynamic>{
+          'nombre': 'Oscar Flerez',
+          'parentesco': 'Padre',
+        },
+        permisos: const <Map<String, dynamic>>[],
+      );
+      await pumpProfile(tester, auth);
+
+      expect(find.text('Aún no tienes permisos registrados.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('la sala real muestra el profesional y envía un mensaje', (
     WidgetTester tester,
@@ -2239,10 +2729,10 @@ void main() {
     await tester.tap(find.text('Enviar'));
     await tester.pumpAndSettle();
 
-    expect(
-      auth.mensajesEnviados.single,
-      (idPsicologo: 19, texto: '¿Sigue la cita?'),
-    );
+    expect(auth.mensajesEnviados.single, (
+      idPsicologo: 19,
+      texto: '¿Sigue la cita?',
+    ));
     expect(tester.takeException(), isNull);
   });
 
@@ -2253,10 +2743,7 @@ void main() {
 
     expect(find.text('Profesional no disponible'), findsOneWidget);
     expect(find.text('Sin cita programada.'), findsOneWidget);
-    expect(
-      enlaceVideollamada(19),
-      'https://meet.jit.si/mindjora-psicologo-19',
-    );
+    expect(enlaceVideollamada(19), 'https://meet.jit.si/mindjora-psicologo-19');
 
     await tester.tap(find.text('Unirse a la Videollamada Ahora'));
     await tester.pump();
@@ -2268,58 +2755,59 @@ void main() {
   });
 
   testWidgets(
-      'el detalle real muestra la duración calculada y sin duración no inventa 50',
-      (WidgetTester tester) async {
-    const reservaConDuracion = SesionReserva(
-      specialistName: 'Profesional #19',
-      initials: 'P19',
-      role: 'Psicólogo',
-      rating: '5.0',
-      reviews: '10',
-      focus: 'General',
-      dateLabel: 'Lunes 10',
-      startTime: '10:00',
-      idPsicologo: 19,
-      idDisponibilidad: 1,
-      tarifa: 50000,
-      duracionMinutos: 45,
-    );
-    await pumpOnPhone(
-      tester,
-      const MaterialApp(
-        home: PacienteDetalleSesionPage(reserva: reservaConDuracion),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
+    'el detalle real muestra la duración calculada y sin duración no inventa 50',
+    (WidgetTester tester) async {
+      const reservaConDuracion = SesionReserva(
+        specialistName: 'Profesional #19',
+        initials: 'P19',
+        role: 'Psicólogo',
+        rating: '5.0',
+        reviews: '10',
+        focus: 'General',
+        dateLabel: 'Lunes 10',
+        startTime: '10:00',
+        idPsicologo: 19,
+        idDisponibilidad: 1,
+        tarifa: 50000,
+        duracionMinutos: 45,
+      );
+      await pumpOnPhone(
+        tester,
+        const MaterialApp(
+          home: PacienteDetalleSesionPage(reserva: reservaConDuracion),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
 
-    expect(find.text('Tarifa base consulta (45 min)'), findsOneWidget);
+      expect(find.text('Tarifa base consulta (45 min)'), findsOneWidget);
 
-    const reservaSinDuracion = SesionReserva(
-      specialistName: 'Profesional #19',
-      initials: 'P19',
-      role: 'Psicólogo',
-      rating: '5.0',
-      reviews: '10',
-      focus: 'General',
-      dateLabel: 'Lunes 10',
-      startTime: '10:00',
-      idPsicologo: 19,
-      idDisponibilidad: 1,
-      tarifa: 50000,
-      duracionMinutos: null,
-    );
-    await pumpOnPhone(
-      tester,
-      const MaterialApp(
-        home: PacienteDetalleSesionPage(reserva: reservaSinDuracion),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
+      const reservaSinDuracion = SesionReserva(
+        specialistName: 'Profesional #19',
+        initials: 'P19',
+        role: 'Psicólogo',
+        rating: '5.0',
+        reviews: '10',
+        focus: 'General',
+        dateLabel: 'Lunes 10',
+        startTime: '10:00',
+        idPsicologo: 19,
+        idDisponibilidad: 1,
+        tarifa: 50000,
+        duracionMinutos: null,
+      );
+      await pumpOnPhone(
+        tester,
+        const MaterialApp(
+          home: PacienteDetalleSesionPage(reserva: reservaSinDuracion),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
 
-    expect(find.text('Tarifa base consulta'), findsOneWidget);
-    expect(find.text('Tarifa base consulta (50 min)'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('Tarifa base consulta'), findsOneWidget);
+      expect(find.text('Tarifa base consulta (50 min)'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

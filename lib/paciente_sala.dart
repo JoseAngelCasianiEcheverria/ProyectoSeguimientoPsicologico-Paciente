@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -65,7 +67,8 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
     }
   }
 
-  int? get _idPsicologo => _demo ? null : int.tryParse('${_cita?['id_psicologo'] ?? ''}');
+  int? get _idPsicologo =>
+      _demo ? null : int.tryParse('${_cita?['id_psicologo'] ?? ''}');
 
   String get _nombreProfesional {
     if (_demo) return 'Dra. Yani Casiani';
@@ -86,7 +89,8 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
     if (fecha == null) return value;
     final dia = fecha.day.toString().padLeft(2, '0');
     final mes = fecha.month.toString().padLeft(2, '0');
-    final hora = '${fecha.hour.toString().padLeft(2, '0')}:'
+    final hora =
+        '${fecha.hour.toString().padLeft(2, '0')}:'
         '${fecha.minute.toString().padLeft(2, '0')}';
     return '$dia/$mes, $hora hrs';
   }
@@ -124,11 +128,13 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
       isScrollControlled: true,
       backgroundColor: AppColors.canvas,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.card),
+        ),
       ),
       builder: (_) => SizedBox(
         height: MediaQuery.of(context).size.height * 0.8,
-        child: _ChatSheet(
+        child: PacienteChatSheet(
           auth: _auth,
           idPsicologo: id,
           nombre: _nombreProfesional,
@@ -178,7 +184,8 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
                     ),
                     const SizedBox(height: 16),
                     const PrivacyNotice(
-                      text: 'La videollamada se abre en el navegador con el '
+                      text:
+                          'La videollamada se abre en el navegador con el '
                           'enlace de tu sesión.',
                       background: AppColors.softFill,
                       icon: Icons.lock_outline_rounded,
@@ -253,8 +260,13 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _demo ? 'Hoy, 18:30 – 19:20 hrs' : (_fechaCita ?? 'Sin cita programada.'),
-                  style: const TextStyle(color: AppColors.inkSoft, fontSize: 13),
+                  _demo
+                      ? 'Hoy, 18:30 – 19:20 hrs'
+                      : (_fechaCita ?? 'Sin cita programada.'),
+                  style: const TextStyle(
+                    color: AppColors.inkSoft,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -266,46 +278,80 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
 }
 
 /// Hilo breve con el profesional: lee los últimos mensajes y envía uno nuevo.
-class _ChatSheet extends StatefulWidget {
-  const _ChatSheet({
+class PacienteChatSheet extends StatefulWidget {
+  const PacienteChatSheet({
+    super.key,
     required this.auth,
     required this.idPsicologo,
     required this.nombre,
+    this.onMessagesSeen,
   });
 
   final PacienteAuth auth;
   final int idPsicologo;
   final String nombre;
+  final VoidCallback? onMessagesSeen;
 
   @override
-  State<_ChatSheet> createState() => _ChatSheetState();
+  State<PacienteChatSheet> createState() => _PacienteChatSheetState();
 }
 
-class _ChatSheetState extends State<_ChatSheet> {
+class _PacienteChatSheetState extends State<PacienteChatSheet> {
   final _controlador = TextEditingController();
   List<Map<String, dynamic>> _mensajes = const [];
+  StreamSubscription<Map<String, dynamic>>? _mensajesSubscription;
   bool _cargando = true;
   bool _enviando = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _cargar();
+    _mensajesSubscription = widget.auth.mensajesEntrantes().listen(
+      (mensaje) {
+        final id = int.tryParse('${mensaje['id_psicologo'] ?? ''}');
+        if (id != widget.idPsicologo) return;
+        unawaited(_cargar());
+        if (!mounted) return;
+        widget.onMessagesSeen?.call();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo mantener la conexión del chat.'),
+            ),
+          );
+      },
+    );
   }
 
   @override
   void dispose() {
+    unawaited(_mensajesSubscription?.cancel());
     _controlador.dispose();
     super.dispose();
   }
 
   Future<void> _cargar() async {
-    final mensajes = await widget.auth.mensajesCon(widget.idPsicologo);
-    if (!mounted) return;
-    setState(() {
-      _mensajes = mensajes;
-      _cargando = false;
-    });
+    try {
+      final mensajes = await widget.auth.mensajesCon(widget.idPsicologo);
+      if (!mounted) return;
+      setState(() {
+        _mensajes = mensajes;
+        _error = null;
+        _cargando = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudieron cargar los mensajes. Inténtalo de nuevo.';
+        _cargando = false;
+      });
+    }
   }
 
   Future<void> _enviar() async {
@@ -349,29 +395,75 @@ class _ChatSheetState extends State<_ChatSheet> {
           Expanded(
             child: _cargando
                 ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
                 : _mensajes.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Aún no hay mensajes',
-                          style: TextStyle(color: AppColors.inkSoft, fontSize: 13),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: _mensajes.length,
-                        itemBuilder: (_, i) {
-                          final mensaje = _mensajes[i];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              '${mensaje['texto'] ?? ''}',
-                              style: const TextStyle(
-                                color: AppColors.ink,
-                                fontSize: 14,
+                ? const Center(
+                    child: Text(
+                      'Aún no hay mensajes',
+                      style: TextStyle(color: AppColors.inkSoft, fontSize: 13),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _mensajes.length,
+                    itemBuilder: (_, i) {
+                      final mensaje = _mensajes[i];
+                      final pacienteId = int.tryParse(
+                        '${mensaje['id_paciente'] ?? ''}',
+                      );
+                      final autorId = int.tryParse(
+                        '${mensaje['autor_id'] ?? ''}',
+                      );
+                      final esPaciente =
+                          pacienteId != null && autorId == pacienteId;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Align(
+                          alignment: esPaciente
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.76,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: esPaciente
+                                    ? AppColors.brand
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: esPaciente
+                                    ? null
+                                    : Border.all(color: AppColors.border),
+                              ),
+                              child: Text(
+                                '${mensaje['texto'] ?? ''}',
+                                style: TextStyle(
+                                  color: esPaciente
+                                      ? Colors.white
+                                      : AppColors.ink,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 12),
           Row(

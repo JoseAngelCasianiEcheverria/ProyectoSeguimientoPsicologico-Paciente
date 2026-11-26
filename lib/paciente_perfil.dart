@@ -56,8 +56,9 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
     bool requiereAcompanante,
     String documento,
     String telefono,
-    String direccion
-  })? _datos;
+    String direccion,
+  })?
+  _datos;
   Map<String, dynamic>? _acompanante;
   Map<String, dynamic>? _empresa;
   List<Map<String, dynamic>> _permisos = const [];
@@ -106,19 +107,19 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
       if (!mounted) return;
       setState(() {
         _datos =
-            resultados[0] as ({
-              String nombre,
-              String correo,
-              bool requiereAcompanante,
-              String documento,
-              String telefono,
-              String direccion
-            })?;
+            resultados[0]
+                as ({
+                  String nombre,
+                  String correo,
+                  bool requiereAcompanante,
+                  String documento,
+                  String telefono,
+                  String direccion,
+                })?;
         _acompanante = resultados[1] as Map<String, dynamic>?;
         _empresa = resultados[2] as Map<String, dynamic>?;
         _avatarRuta = resultados[3] as String?;
-        _permisos =
-            (resultados[4] as List<Map<String, dynamic>>?) ?? const [];
+        _permisos = (resultados[4] as List<Map<String, dynamic>>?) ?? const [];
         _cargando = false;
       });
     } catch (_) {
@@ -191,10 +192,7 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
     final bytes = await imagen.readAsBytes();
     final nombre = imagen.name;
     final extension = nombre.contains('.') ? nombre.split('.').last : 'jpg';
-    final ruta = await _auth.subirAvatar(
-      bytes: bytes,
-      extension: extension,
-    );
+    final ruta = await _auth.subirAvatar(bytes: bytes, extension: extension);
     if (!mounted) return;
     setState(() {
       _subiendoFoto = false;
@@ -300,14 +298,12 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
                       _buildDbNotice(),
                       const SizedBox(height: 18),
                       _buildProfileCard(),
-                      const SizedBox(height: 16),
-                      _buildSupportNetwork(context),
-                      const SizedBox(height: 16),
-                      _buildManagement(),
+                      if (_demo || _acompanante != null) ...[
+                        const SizedBox(height: 16),
+                        _buildSupportNetwork(context),
+                      ],
                       const SizedBox(height: 16),
                       _buildLogout(context),
-                      const SizedBox(height: 20),
-                      _buildFooter(),
                     ],
                   ),
                 ),
@@ -345,7 +341,11 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 18, color: AppColors.inkSoft),
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: AppColors.inkSoft,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -439,7 +439,10 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
                           : 'karen.zapata@empresa.com',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.inkSoft, fontSize: 14),
+                      style: const TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     const Wrap(
@@ -900,11 +903,13 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
             const SizedBox(height: 10),
             const _PermissionRow(
               icon: Icons.lock_outline_rounded,
-              title: 'Notas de terapia, diario íntimo y tests clínicos (OPER 2)',
+              title:
+                  'Notas de terapia, diario íntimo y tests clínicos (OPER 2)',
               enabled: false,
               note: AppText.lockedNotesNotice,
             ),
-          ] else ..._buildPermisosReal(),
+          ] else
+            ..._buildPermisosReal(),
           const SizedBox(height: 18),
           _WideButton(
             label: 'Configurar Notificaciones del Acompañante',
@@ -944,8 +949,11 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
     final tieneAlerta = _permisos.any((p) => p['tipo_recurso'] == 'ALERTA');
     final tieneCita = _permisos.any((p) => p['tipo_recurso'] == 'CITA');
     final tieneClinico = _permisos.any(
-      (p) => const ['NOTA_CLINICA', 'SEGUIMIENTO', 'TEST_RESULTADO']
-          .contains(p['tipo_recurso']),
+      (p) => const [
+        'NOTA_CLINICA',
+        'SEGUIMIENTO',
+        'TEST_RESULTADO',
+      ].contains(p['tipo_recurso']),
     );
 
     final filas = <Widget>[
@@ -970,9 +978,7 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
     ];
 
     if (filas.isEmpty) {
-      return const [
-        AvisoVacio(texto: 'Aún no tienes permisos registrados.'),
-      ];
+      return const [AvisoVacio(texto: 'Aún no tienes permisos registrados.')];
     }
 
     return [
@@ -1024,7 +1030,10 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
                     const SizedBox(height: 3),
                     const Text(
                       '+56 9 8765 4321',
-                      style: TextStyle(color: AppColors.inkSoft, fontSize: 13.5),
+                      style: TextStyle(
+                        color: AppColors.inkSoft,
+                        fontSize: 13.5,
+                      ),
                     ),
                   ],
                 ),
@@ -1187,25 +1196,7 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
     return partes[0][0].toUpperCase();
   }
 
-  // --- Gestión y documentación ------------------------------------------
-
-  Widget _buildManagement() {
-    return _PerfilCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _CardHeading(title: 'Gestión y Documentación'),
-          const SizedBox(height: 12),
-          for (final item in _kManagement) ...[
-            const Divider(height: 1, thickness: 1, color: AppColors.divider),
-            _ManagementRow(item: item),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // --- Cierre de sesión y pie -------------------------------------------
+  // --- Cierre de sesión --------------------------------------------------
 
   Widget _buildLogout(BuildContext context) {
     return OutlinedButton(
@@ -1230,43 +1221,6 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
       ),
     );
   }
-
-  /// Aviso punteado centrado y, debajo, la versión del portal.
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        CustomPaint(
-          painter: const DashedBorderPainter(
-            fill: AppColors.canvas,
-            stroke: AppColors.border,
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-            child: Text(
-              AppText.profileNotice,
-              textAlign: TextAlign.center,
-              style: AppText.footer.copyWith(
-                color: AppColors.inkSoft,
-                fontSize: 12.5,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'MINDJORA • PORTAL DEL PACIENTE • V2.4.1',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: AppColors.textFaint,
-            fontSize: 10.5,
-            letterSpacing: 0.6,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // --- Datos de muestra ------------------------------------------------------
@@ -1277,34 +1231,6 @@ const List<({String label, String value, String caption})> _kStats =
       (label: 'SESIONES', value: '2 de 4', caption: 'este mes'),
       (label: 'ASISTENCIA', value: '92%', caption: 'adherencia'),
       (label: 'FASE CLÍNICA', value: 'Semana 8', caption: 'Consolidación'),
-    ];
-
-/// Accesos de «Gestión y Documentación».
-///
-/// Los títulos de la captura llegan recortados con puntos suspensivos; el
-/// final de cada uno es el más probable, a confirmar con el diseño.
-const List<({IconData icon, String title, String subtitle})> _kManagement =
-    <({IconData icon, String title, String subtitle})>[
-      (
-        icon: Icons.description_outlined,
-        title: 'Historial de citas y comprobantes de reembolso',
-        subtitle: 'Comprobantes autorizados para Isapre y Fonasa',
-      ),
-      (
-        icon: Icons.verified_user_outlined,
-        title: 'Consentimiento informado y políticas de privacidad',
-        subtitle: AppText.consentSubtitle,
-      ),
-      (
-        icon: Icons.notifications_active_outlined,
-        title: 'Canales de notificación (Push, WhatsApp y correo)',
-        subtitle: 'Frecuencia y canales para recordatorios de sesión',
-      ),
-      (
-        icon: Icons.lock_outline_rounded,
-        title: 'Seguridad y acceso (Autenticación en 2 pasos)',
-        subtitle: 'Configuración de seguridad y acceso a la cuenta',
-      ),
     ];
 
 // --- Piezas de la pantalla -------------------------------------------------
@@ -1457,7 +1383,11 @@ class _Avatar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+              child: const Icon(
+                Icons.check_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -1698,62 +1628,6 @@ class _WideButton extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Acceso de «Gestión y Documentación»: icono, título, detalle y flecha.
-class _ManagementRow extends StatelessWidget {
-  const _ManagementRow({required this.item});
-
-  final ({IconData icon, String title, String subtitle}) item;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: _noop,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Row(
-          children: [
-            Icon(item.icon, size: 22, color: AppColors.inkSoft),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.inkSoft,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 22,
-              color: AppColors.inkSoft,
-            ),
-          ],
-        ),
       ),
     );
   }

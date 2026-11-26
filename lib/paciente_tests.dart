@@ -5,6 +5,22 @@ import 'paciente_auth.dart';
 import 'tests/instrumentos_test.dart';
 import 'widgets.dart';
 
+bool evaluacionRespondidaCompleta(Map<String, dynamic> evaluacion) {
+  final respuestas = evaluacion['respuestas'];
+  if (respuestas is! List ||
+      respuestas.isEmpty ||
+      respuestas.any((respuesta) => respuesta == null)) {
+    return false;
+  }
+
+  final test = evaluacion['test_psicometrico'];
+  final codigo = test is Map ? '${test['codigo'] ?? ''}'.trim() : '';
+  final nombre = test is Map ? '${test['nombre'] ?? ''}'.trim() : '';
+  final instrumento =
+      instrumentoPorCodigo(codigo) ?? instrumentoPorCodigo(nombre);
+  return instrumento == null || respuestas.length == instrumento.total;
+}
+
 /// Aviso de confidencialidad del pie, tal como llega en la captura de diseño.
 ///
 /// Es una afirmación legal (secreto profesional), así que, como el resto de
@@ -28,7 +44,6 @@ class _Questionnaire {
     this.index = 0,
     this.done = false,
     this.disponible = true,
-    this.asignado = false,
     this.descripcion,
   });
 
@@ -55,9 +70,6 @@ class _Questionnaire {
   /// `false` cuando la base trae el test pero la app no tiene sus ítems.
   final bool disponible;
 
-  /// El psicólogo lo asignó como tarea; solo los asignados se habilitan.
-  final bool asignado;
-
   /// Descripción del catálogo (`test_psicometrico.descripcion`), si la hay.
   final String? descripcion;
 
@@ -72,8 +84,8 @@ class _Questionnaire {
 /// el avance de la maqueta y el contador «Faltan 4h 15m». En modo real el
 /// catálogo sale de `test_psicometrico` (con `catalogoTests`), el límite se
 /// calcula con `citaSiguiente` y el estado de cada test con
-/// `evaluacionesPropias`. Solo se pueden abrir los tests que el psicólogo
-/// asignó como tarea (`tareasPropias`); los demás se muestran deshabilitados.
+/// `evaluacionesPropias`. Solo se muestran y pueden abrirse los tests que el
+/// psicólogo asignó como tarea (`tareasPropias`).
 /// Donde no hay dato se avisa en vez de inventarlo.
 /// Completar un cuestionario guarda con `guardarEvaluacion`, igual que antes.
 ///
@@ -103,7 +115,11 @@ class PacienteTestsPage extends StatefulWidget {
 }
 
 class _PacienteTestsPageState extends State<PacienteTestsPage> {
+  static const double _tabWidth = 140;
+  static const double _tabGap = 8;
+
   late final PacienteAuth _auth = widget.auth ?? PacienteAuth();
+  final ScrollController _tabsScrollController = ScrollController();
 
   /// `true` mientras se decide el modo (demo o real) y se cargan los datos.
   bool _cargando = true;
@@ -124,6 +140,9 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
   /// Si la fila «Pregunta N previa» está desplegada.
   bool _showPrevious = false;
 
+  /// Evita guardar el mismo cuestionario mientras una solicitud está activa.
+  bool _finalizando = false;
+
   _Questionnaire get _current => _tests[_tab];
 
   /// Los dos cuestionarios tal como llegan en la captura de diseño.
@@ -136,7 +155,6 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       // Las dos primeras respuestas y la tercera son las de la captura.
       answers: <int?>[1, 1, 1, null, null, null, null, null, null],
       index: 2,
-      asignado: true,
     ),
     _Questionnaire(
       tabLabel: '${gad7.nombre} (${gad7.dominio})',
@@ -144,7 +162,6 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       icon: Icons.air_rounded,
       instrumento: gad7,
       answers: List<int?>.filled(gad7.total, null),
-      asignado: true,
     ),
   ];
 
@@ -163,6 +180,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
           _tab = _pestinaPara(_tests, abierto);
           _cargando = false;
         });
+        _revelarPestana(_tab);
         return;
       }
 
@@ -179,8 +197,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       final cita = resultados[1] as Map<String, dynamic>?;
       final evaluaciones =
           (resultados[2] as List<Map<String, dynamic>>?) ?? const [];
-      final tareas =
-          (resultados[3] as List<Map<String, dynamic>>?) ?? const [];
+      final tareas = (resultados[3] as List<Map<String, dynamic>>?) ?? const [];
       const prefijo = 'Completar test ';
       final asignados = <String>{};
       for (final tarea in tareas) {
@@ -203,6 +220,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
         _showPrevious = false;
         _cargando = false;
       });
+      _revelarPestana(_tab);
     } catch (_) {
       // Sin sesión o sin configuración de base no hay catálogo: se queda el
       // modo real y la pantalla avisa.
@@ -240,8 +258,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       if (previo.answers.length == test.answers.length) {
         test.answers.setAll(0, previo.answers);
       }
-      test.index =
-          previo.index < test.answers.length ? previo.index : 0;
+      test.index = previo.index < test.answers.length ? previo.index : 0;
       test.done = test.done || previo.done;
     }
     return nuevos;
@@ -249,7 +266,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
 
   /// Catálogo real convertido en cuestionarios.
   ///
-  /// Solo se habilitan los tests que el psicólogo asignó como tarea. Si el
+  /// Solo se muestran los tests que el psicólogo asignó como tarea. Si el
   /// código del catálogo no corresponde a un instrumento conocido se muestra
   /// su nombre y descripción con un aviso, sin inventar preguntas.
   List<_Questionnaire> _testsDesdeCatalogo(
@@ -259,7 +276,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
   ) {
     final hechas = <String>{};
     for (final fila in evaluaciones) {
-      if (fila['completado'] != true) continue;
+      if (!evaluacionRespondidaCompleta(fila)) continue;
       final test = fila['test_psicometrico'];
       final nombre = test is Map ? '${test['nombre'] ?? ''}'.trim() : '';
       if (nombre.isNotEmpty) hechas.add(nombre.toUpperCase());
@@ -270,9 +287,10 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       final nombre = '${fila['nombre'] ?? ''}'.trim();
       if (nombre.isEmpty) continue;
       final upper = nombre.toUpperCase();
-      final instrumento = instrumentoPorCodigo('${fila['codigo'] ?? ''}'.trim()) ??
+      if (!asignados.contains(upper.toLowerCase())) continue;
+      final instrumento =
+          instrumentoPorCodigo('${fila['codigo'] ?? ''}'.trim()) ??
           instrumentoPorCodigo(upper);
-      final asignado = asignados.contains(upper.toLowerCase());
       lista.add(
         _Questionnaire(
           tabLabel: instrumento == null
@@ -282,13 +300,12 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
           icon: instrumento?.codigo == 'PHQ-9'
               ? Icons.psychology_outlined
               : instrumento?.codigo == 'GAD-7'
-                  ? Icons.air_rounded
-                  : Icons.assignment_outlined,
+              ? Icons.air_rounded
+              : Icons.assignment_outlined,
           instrumento: instrumento,
           answers: List<int?>.filled(instrumento?.total ?? 0, null),
           done: hechas.contains(upper),
-          asignado: asignado,
-          disponible: instrumento != null && asignado,
+          disponible: instrumento != null,
           descripcion: '${fila['descripcion'] ?? ''}'.trim(),
         ),
       );
@@ -304,20 +321,43 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
 
   /// Aviso de que el flujo todavía no existe, en vez de un botón muerto.
   void _pending(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _selectTab(int index) {
-    if (index == _tab) return;
+    if (_finalizando || index == _tab) return;
     setState(() {
       _tab = index;
       _showPrevious = false;
     });
+    _revelarPestana(index);
+  }
+
+  void _revelarPestana(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_tabsScrollController.hasClients) return;
+      final position = _tabsScrollController.position;
+      final target = (index * (_tabWidth + _tabGap)).clamp(
+        0.0,
+        position.maxScrollExtent,
+      );
+      _tabsScrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabsScrollController.dispose();
+    super.dispose();
   }
 
   void _answer(int value) {
+    if (_finalizando) return;
     setState(() {
       _current.answers[_current.index] = value;
       _current.done = false;
@@ -326,7 +366,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
 
   void _previous() {
     final test = _current;
-    if (test.index == 0) return;
+    if (_finalizando || test.index == 0) return;
     setState(() {
       test.index--;
       _showPrevious = false;
@@ -337,7 +377,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
   /// pasa al que falte, o termina la batería si ya no queda ninguno.
   Future<void> _next() async {
     final test = _current;
-    if (test.answers[test.index] == null) return;
+    if (_finalizando || test.done || test.answers[test.index] == null) return;
 
     if (test.index < test.total - 1) {
       setState(() {
@@ -347,97 +387,87 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
       return;
     }
 
-    final instrumento = test.instrumento!;
-    final score = instrumento.puntajeTotal(test.answers);
-    if (!_demo) {
-      final guardado = await _auth.guardarEvaluacion(
-        nombreTest: test.name,
-        puntajeTotal: score,
-        respuestas: test.answers,
-      );
-      if (!mounted) return;
-      if (!guardado) {
-        ScaffoldMessenger.of(context)
+    setState(() => _finalizando = true);
+    try {
+      final instrumento = test.instrumento!;
+      final score = instrumento.puntajeTotal(test.answers);
+      var tareaCompletada = true;
+      if (!_demo) {
+        final guardado = await _auth.guardarEvaluacion(
+          nombreTest: test.name,
+          puntajeTotal: score,
+          respuestas: test.answers,
+        );
+        if (!mounted) return;
+        if (!guardado) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No se pudo guardar el resultado. Inténtalo de nuevo.',
+                ),
+              ),
+            );
+          return;
+        }
+        setState(() => test.done = true);
+        tareaCompletada = await _auth.completarTareaTest(test.name);
+        if (!mounted) return;
+      } else {
+        setState(() => test.done = true);
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      // Los tests sin ítems no se cuentan como pendientes de responder.
+      final pending = _tests.indexWhere((t) => t.disponible && !t.done);
+      if (pending != -1) {
+        setState(() {
+          _tab = pending;
+          _showPrevious = false;
+        });
+        _revelarPestana(pending);
+        messenger
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                'No se pudo guardar el resultado. Inténtalo de nuevo.',
+                tareaCompletada
+                    ? '${test.name} completado. Continúa con ${_tests[pending].name}.'
+                    : 'El resultado se guardó, pero no se pudo actualizar el '
+                          'estado de la tarea.',
               ),
             ),
           );
         return;
       }
-    }
-    await _mostrarResultado(instrumento, score, test.answers);
-    if (!mounted) return;
-    setState(() => test.done = true);
-    final messenger = ScaffoldMessenger.of(context);
-    // Los tests sin ítems no se cuentan como pendientes de responder.
-    final pending = _tests.indexWhere((t) => t.disponible && !t.done);
-    if (pending != -1) {
-      setState(() {
-        _tab = pending;
-        _showPrevious = false;
-      });
+
+      if (!tareaCompletada) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'El resultado se guardó, pero no se pudo actualizar el estado '
+                'de la tarea.',
+              ),
+            ),
+          );
+        return;
+      }
+
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              '${test.name} completado. Continúa con ${_tests[pending].name}.',
+              'Tests enviados. Tu terapeuta los revisará antes de la sesión.',
             ),
           ),
         );
-      return;
+      Navigator.of(context).maybePop();
+    } finally {
+      if (mounted) setState(() => _finalizando = false);
     }
-
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Tests enviados. Tu terapeuta los revisará antes de la sesión.',
-          ),
-        ),
-      );
-    Navigator.of(context).maybePop();
-  }
-
-  Future<void> _mostrarResultado(
-    InstrumentoTest instrumento,
-    int puntaje,
-    List<int?> respuestas,
-  ) {
-    final banda = instrumento.interpretar(puntaje);
-    final revision = instrumento.requiereRevisionHumana(respuestas);
-    return showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Resultado de ${instrumento.nombre}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Puntaje: $puntaje / ${instrumento.maximo}'),
-            const SizedBox(height: 8),
-            Text(banda ?? 'Sin interpretación disponible.'),
-            if (revision) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Tu terapeuta revisará personalmente este resultado.',
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Entendido'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -485,14 +515,21 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
                       ] else ...[
                         _buildTabs(),
                         const SizedBox(height: 16),
-                        if (disponible) ...[
-                          _buildProgress(test!),
+                        if (disponible && !test!.done) ...[
+                          _buildProgress(test),
                           const SizedBox(height: 16),
                           _buildQuestion(test),
                           if (test.index > 0) ...[
                             const SizedBox(height: 16),
                             _buildPrevious(test),
                           ],
+                        ] else if (disponible) ...[
+                          AvisoVacio(
+                            texto:
+                                'Test completado. El resultado fue enviado '
+                                'a tu psicólogo.',
+                            t: PanelTokens.light(),
+                          ),
                         ] else ...[
                           _buildUnavailable(test!),
                         ],
@@ -510,7 +547,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
                 ),
               ),
             ),
-            if (disponible) _buildActionBar(test!),
+            if (disponible && !test!.done) _buildActionBar(test),
           ],
         ),
       ),
@@ -726,21 +763,27 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
   // --- Pestañas -------------------------------------------------------------
 
   Widget _buildTabs() {
-    return Row(
-      children: [
-        for (var i = 0; i < _tests.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
-          Expanded(
-            child: _TestTab(
-              label: _tests[i].tabLabel,
-              icon: _tests[i].icon,
-              selected: i == _tab,
-              done: _tests[i].done,
-              onTap: () => _selectTab(i),
+    return SingleChildScrollView(
+      controller: _tabsScrollController,
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _tests.length; i++) ...[
+            if (i > 0) const SizedBox(width: _tabGap),
+            SizedBox(
+              width: _tabWidth,
+              child: _TestTab(
+                label: _tests[i].tabLabel,
+                icon: _tests[i].icon,
+                selected: i == _tab,
+                done: _tests[i].done,
+                onTap: () => _selectTab(i),
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -968,9 +1011,7 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
           ],
           const SizedBox(height: 12),
           AvisoVacio(
-            texto: test.asignado
-                ? 'Este test aún no está disponible en la app.'
-                : 'Tu psicólogo aún no ha asignado este test.',
+            texto: 'Este test aún no está disponible en la app.',
             t: PanelTokens.light(),
           ),
         ],
@@ -1123,11 +1164,19 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
               Expanded(
                 flex: 2,
                 child: PrimaryButton(
-                  label: isLast ? 'Finalizar cuestionario' : 'Siguiente Pregunta',
-                  icon: isLast
+                  label: _finalizando
+                      ? 'Enviando...'
+                      : isLast
+                      ? 'Finalizar cuestionario'
+                      : 'Siguiente Pregunta',
+                  icon: _finalizando
+                      ? Icons.hourglass_top_rounded
+                      : isLast
                       ? Icons.check_rounded
                       : Icons.arrow_forward_rounded,
-                  onPressed: hasAnswer ? _next : null,
+                  onPressed: hasAnswer && !_finalizando && !test.done
+                      ? _next
+                      : null,
                   minHeight: 48,
                 ),
               ),

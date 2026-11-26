@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'design_system.dart';
 import 'paciente_agenda.dart';
+import 'paciente_chats.dart';
 import 'paciente_auth.dart';
 import 'paciente_diario.dart';
 import 'paciente_notificaciones.dart';
 import 'paciente_perfil.dart';
 import 'paciente_sala.dart';
 import 'paciente_tests.dart';
-import 'tests/instrumentos_test.dart';
 import 'widgets.dart';
 
 /// La captura es maqueta: las acciones se conectan cuando exista su flujo.
@@ -23,11 +25,14 @@ void _noop() {}
 /// acompañante) todavía no tiene flujo y solo conservan el
 /// aspecto del botón.
 ///
-/// El interruptor de sol de la cabecera sí es real: reconstruye el `Theme` de
-/// la vista con [AppTheme.dark] o [AppTheme.light], y todas las superficies se
-/// resuelven con [PanelTokens].
+/// El tema inicial puede recibirse con [initialDarkMode]; la pantalla no
+/// muestra controles de tema ni un acceso directo al perfil.
 class PacienteInicioPage extends StatefulWidget {
-  const PacienteInicioPage({super.key, this.auth, this.initialDarkMode = false});
+  const PacienteInicioPage({
+    super.key,
+    this.auth,
+    this.initialDarkMode = false,
+  });
 
   /// Servicio de autenticacion del paciente. Si es `null` se crea uno por
   /// defecto: la pantalla carga la ficha propia del paciente autenticado.
@@ -62,19 +67,28 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
     bool requiereAcompanante,
     String documento,
     String telefono,
-    String direccion
-  })? _datos;
+    String direccion,
+  })?
+  _datos;
   Map<String, dynamic>? _cita;
   List<Map<String, dynamic>> _tareas = const [];
   List<Map<String, dynamic>> _evaluaciones = const [];
   Map<String, dynamic>? _acompanante;
   Map<int, ({String nombre, String? avatarUrl})> _directorio = const {};
+  StreamSubscription<Map<String, dynamic>>? _mensajesSubscription;
+  int _mensajesNuevos = 0;
 
   @override
   void initState() {
     super.initState();
     _dark = widget.initialDarkMode;
     _cargarDatos();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_mensajesSubscription?.cancel());
+    super.dispose();
   }
 
   /// En modo demo no se consulta nada: la pantalla muestra los mockups.
@@ -102,14 +116,15 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
       if (!mounted) return;
       setState(() {
         _datos =
-            resultados[0] as ({
-              String nombre,
-              String correo,
-              bool requiereAcompanante,
-              String documento,
-              String telefono,
-              String direccion
-            })?;
+            resultados[0]
+                as ({
+                  String nombre,
+                  String correo,
+                  bool requiereAcompanante,
+                  String documento,
+                  String telefono,
+                  String direccion,
+                })?;
         _cita = resultados[1] as Map<String, dynamic>?;
         _tareas = (resultados[2] as List<Map<String, dynamic>>?) ?? const [];
         _evaluaciones =
@@ -119,6 +134,7 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
             resultados[5] as Map<int, ({String nombre, String? avatarUrl})>;
         _cargando = false;
       });
+      _escucharMensajes();
     } catch (_) {
       // Sin sesión o sin configuración de base no hay datos propios: se queda
       // el modo real y cada bloque muestra su aviso.
@@ -126,8 +142,6 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
       setState(() => _cargando = false);
     }
   }
-
-  void _toggleTheme() => setState(() => _dark = !_dark);
 
   /// «Agenda» abre el directorio de especialistas, «Diario» el diario emocional y
   /// «Perfil» el perfil del paciente.
@@ -141,9 +155,7 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
       _ => null,
     };
     if (page == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => page),
-    );
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   /// «Entrar a Sala Virtual» y «Detalles de la cita» abren la antesala de la
@@ -163,16 +175,65 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
     );
   }
 
-  /// «Batería psicométrica periódica» abre los tests pre-consulta.
-  void _openTests({String? testInicial}) {
+  void _openChats() {
+    _markChatMessagesSeen();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => PacienteTestsPage(
+        builder: (_) => PacienteChatsPage(
           auth: _auth,
-          testInicial: testInicial,
+          onMessagesSeen: _markChatMessagesSeen,
         ),
       ),
     );
+  }
+
+  void _markChatMessagesSeen() {
+    if (_mensajesNuevos > 0) setState(() => _mensajesNuevos = 0);
+  }
+
+  void _escucharMensajes() {
+    if (_mensajesSubscription != null) return;
+    _mensajesSubscription = _auth.mensajesEntrantes().listen(
+      (mensaje) {
+        if (!mounted) return;
+        setState(() => _mensajesNuevos++);
+
+        final id = int.tryParse('${mensaje['id_psicologo'] ?? ''}');
+        final nombre = id == null ? null : _directorio[id]?.nombre;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Nuevo mensaje de ${nombre?.isNotEmpty == true ? nombre : 'tu psicólogo'}.',
+              ),
+              action: SnackBarAction(label: 'Ver chats', onPressed: _openChats),
+            ),
+          );
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('No se pudo mantener la conexión de chats.'),
+            ),
+          );
+      },
+    );
+  }
+
+  /// «Batería psicométrica periódica» abre los tests pre-consulta.
+  void _openTests({String? testInicial}) {
+    Navigator.of(context)
+        .push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                PacienteTestsPage(auth: _auth, testInicial: testInicial),
+          ),
+        )
+        .then((_) => _cargarDatos());
   }
 
   /// Una tarea «Completar test X» abre ese cuestionario. El resto de tareas
@@ -222,10 +283,10 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
                       children: [
                         _buildHeader(t),
                         const SizedBox(height: 20),
-                         _buildGreeting(t),
-                         const SizedBox(height: 16),
-                         _buildPerfilIncompleto(t),
-                         _buildMoodPicker(t),
+                        _buildGreeting(t),
+                        const SizedBox(height: 16),
+                        _buildPerfilIncompleto(t),
+                        _buildMoodPicker(t),
                         const SizedBox(height: 16),
                         _buildDbNotice(t),
                         const SizedBox(height: 14),
@@ -291,6 +352,17 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           ),
         ),
         SquareIconButton(
+          icon: Icons.chat_bubble_outline_rounded,
+          tooltip: _mensajesNuevos == 0 ? 'Chats' : 'Chats, mensajes nuevos',
+          onPressed: _openChats,
+          backgroundColor: t.card,
+          foregroundColor: t.textStrong,
+          borderColor: t.cardBorder,
+          badge: _mensajesNuevos > 0,
+          badgeColor: t.brand,
+        ),
+        const SizedBox(width: 9),
+        SquareIconButton(
           icon: Icons.notifications_none_rounded,
           tooltip: 'Notificaciones',
           onPressed: _openNotifications,
@@ -298,15 +370,6 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           foregroundColor: t.textStrong,
           borderColor: t.cardBorder,
           badge: true,
-        ),
-        const SizedBox(width: 9),
-        SquareIconButton(
-          icon: Icons.person_outline_rounded,
-          tooltip: 'Mi perfil',
-          onPressed: _noop,
-          backgroundColor: t.card,
-          foregroundColor: t.textStrong,
-          borderColor: t.cardBorder,
         ),
       ],
     );
@@ -340,16 +403,6 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
               ),
             ],
           ),
-        ),
-        const SizedBox(width: 12),
-        SquareIconButton(
-          icon: _dark ? Icons.nightlight_round : Icons.wb_sunny_outlined,
-          tooltip: _dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro',
-          onPressed: _toggleTheme,
-          size: 46,
-          backgroundColor: t.accent,
-          foregroundColor: t.brand,
-          borderColor: t.accentBorder,
         ),
       ],
     );
@@ -460,10 +513,7 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
                 const SizedBox(height: 4),
                 Text(
                   'Agrega tu teléfono y tu dirección.',
-                  style: AppText.body.copyWith(
-                    color: t.textBody,
-                    fontSize: 13,
-                  ),
+                  style: AppText.body.copyWith(color: t.textBody, fontSize: 13),
                 ),
                 const SizedBox(height: 18),
                 LabeledField(
@@ -645,10 +695,7 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           title: 'Cita Programada',
           color: t.textStrong,
           fontSize: 19,
-          trailing: const _Pill(
-            label: 'En 3 horas',
-            dot: true,
-          ),
+          trailing: const _Pill(label: 'En 3 horas', dot: true),
         ),
         const SizedBox(height: 14),
         _PanelCard(
@@ -666,7 +713,8 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _cita?['motivo_consulta'] as String? ?? 'Terapia Individual',
+                          _cita?['motivo_consulta'] as String? ??
+                              'Terapia Individual',
                           style: AppText.wordmark.copyWith(
                             color: t.textStrong,
                             fontSize: 17.5,
@@ -796,7 +844,9 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           title: 'Cita Programada',
           color: t.textStrong,
           fontSize: 19,
-          trailing: momento == null ? null : _Pill(label: momento, dot: true, t: t),
+          trailing: momento == null
+              ? null
+              : _Pill(label: momento, dot: true, t: t),
         ),
         const SizedBox(height: 14),
         _PanelCard(
@@ -991,27 +1041,10 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Metric(
-                t: t,
-                title: 'Ánimo (PHQ-9)',
-                score: '6 / 27',
-                badge: 'Leve',
-                value: 6,
-                total: 27,
-                note: 'Reducción favorable de 3 puntos respecto al mes anterior.',
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Divider(height: 1, thickness: 1, color: t.divider),
-              ),
-              _Metric(
-                t: t,
-                title: 'Ansiedad (GAD-7)',
-                score: '4 / 21',
-                badge: 'Mínima',
-                value: 4,
-                total: 21,
-                note: 'Nivel de estabilidad y regulación emocional óptimo.',
+              Text(
+                'Los resultados de tus tests son confidenciales y serán '
+                'revisados por tu psicólogo.',
+                style: AppText.body.copyWith(color: t.textBody),
               ),
               const SizedBox(height: 14),
               _buildBatteryRow(t),
@@ -1061,14 +1094,11 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
     );
   }
 
-  /// Fila de evaluación real: nombre del test, puntaje y banda calculada.
+  /// Fila de evaluación real sin exponer el puntaje al paciente.
   Widget _buildEvaluationRow(PanelTokens t, Map<String, dynamic> fila) {
     final test = fila['test_psicometrico'];
     final nombre = (test is Map ? test['nombre'] : null) as String?;
-    final puntaje = fila['puntaje_total'];
-    final banda = puntaje is int
-        ? instrumentoPorCodigo(nombre)?.interpretar(puntaje)
-        : null;
+    final completada = evaluacionRespondidaCompleta(fila);
 
     return Row(
       children: [
@@ -1091,28 +1121,12 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           ),
         ),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              puntaje == null ? '—' : '$puntaje',
-              style: AppText.body.copyWith(
-                color: t.textStrong,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (banda != null)
-              Text(
-                banda,
-                textAlign: TextAlign.right,
-                style: AppText.bodySmall.copyWith(
-                  color: t.brand,
-                  fontSize: 11,
-                ),
-              ),
-          ],
+        Text(
+          completada ? 'Completado' : 'Pendiente',
+          style: AppText.bodySmall.copyWith(
+            color: completada ? t.brand : t.textBody,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -1147,7 +1161,9 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
               ),
               const SizedBox(width: 8),
               _Pill(
-                label: _demo ? 'En 4 días' : '${_evaluaciones.length} realizadas',
+                label: _demo
+                    ? 'En 4 días'
+                    : '${_evaluaciones.length} realizadas',
                 t: t,
               ),
             ],
@@ -1204,13 +1220,15 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
     );
   }
 
-  /// Tareas en modo real: las que trae `tareasPropias`.
+  /// Tareas en modo real; las evaluaciones con todas sus respuestas también
+  /// completan la tarea aunque el indicador de la tarea esté desactualizado.
   ///
   /// El botón «Realizar» no está en modo real porque por ahora no tiene flujo:
   /// mejor no pintar un botón que no hace nada.
   Widget _buildTasksReal(PanelTokens t) {
-    final total = _tareas.length;
-    final hechas = _tareas.where((f) => f['completada'] == true).length;
+    final pendientes = _tareas
+        .where((tarea) => !_tareaCompletada(tarea))
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1219,20 +1237,20 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
           title: 'Tareas Terapéuticas de Hoy',
           color: t.textStrong,
           fontSize: 19,
-          trailing: total == 0
+          trailing: pendientes.isEmpty
               ? null
               : Text(
-                  '$hechas de $total listas',
+                  '${pendientes.length} pendientes',
                   style: AppText.body.copyWith(color: t.textBody, fontSize: 13),
                 ),
         ),
         const SizedBox(height: 14),
-        if (total == 0)
-          AvisoVacio(texto: 'Aún no tienes tareas asignadas.', t: t)
+        if (pendientes.isEmpty)
+          AvisoVacio(texto: 'No tienes tareas pendientes.', t: t)
         else
-          for (var i = 0; i < total; i++) ...[
+          for (var i = 0; i < pendientes.length; i++) ...[
             if (i > 0) const SizedBox(height: 12),
-            _taskCardReal(t, _tareas[i]),
+            _taskCardReal(t, pendientes[i]),
           ],
       ],
     );
@@ -1241,19 +1259,50 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
   /// Tarea real del panel: solo «Completar test X» se puede abrir.
   Widget _taskCardReal(PanelTokens t, Map<String, dynamic> tarea) {
     final descripcion = '${tarea['descripcion'] ?? ''}';
-    final completada = tarea['completada'] == true;
     return _TaskCard(
       t: t,
-      done: completada,
+      done: false,
       title: descripcion.isEmpty ? 'Tarea sin descripción' : descripcion,
-      subtitle: completada ? 'Completado' : 'Pendiente',
-      trailing: completada
-          ? Icon(Icons.done_all_rounded, size: 19, color: t.brand)
-          : _Pill(label: 'Pendiente', t: t),
+      subtitle: 'Pendiente',
+      trailing: _Pill(label: 'Pendiente', t: t),
       onTap: descripcion.startsWith('Completar test ')
           ? () => _abrirTarea(descripcion)
           : null,
     );
+  }
+
+  bool _tareaCompletada(Map<String, dynamic> tarea) {
+    const prefijo = 'Completar test ';
+    final descripcion = '${tarea['descripcion'] ?? ''}'.trim();
+    if (!descripcion.startsWith(prefijo)) {
+      return tarea['completada'] == true;
+    }
+
+    final nombreTest = descripcion
+        .substring(prefijo.length)
+        .trim()
+        .toUpperCase();
+    if (nombreTest.isEmpty) return false;
+    final fechaAsignacion = DateTime.tryParse(
+      '${tarea['fecha_asignacion'] ?? ''}',
+    );
+
+    return _evaluaciones.any((evaluacion) {
+      if (!evaluacionRespondidaCompleta(evaluacion)) return false;
+
+      final test = evaluacion['test_psicometrico'];
+      final nombreEvaluacion = test is Map
+          ? '${test['nombre'] ?? ''}'.trim().toUpperCase()
+          : '';
+      if (nombreEvaluacion != nombreTest) return false;
+
+      final fechaCompletado = DateTime.tryParse(
+        '${evaluacion['fecha_completado'] ?? ''}',
+      );
+      return fechaAsignacion == null ||
+          fechaCompletado == null ||
+          !fechaCompletado.isBefore(fechaAsignacion);
+    });
   }
 
   // --- Acompañante vinculado ---------------------------------------------
@@ -1359,7 +1408,11 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
               borderRadius: BorderRadius.circular(AppRadius.soft),
               border: Border.all(color: t.accentBorder),
             ),
-            child: Icon(Icons.person_add_alt_1_rounded, size: 22, color: t.brand),
+            child: Icon(
+              Icons.person_add_alt_1_rounded,
+              size: 22,
+              color: t.brand,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1487,24 +1540,13 @@ class _PanelCard extends StatelessWidget {
   }
 }
 
-/// Píldora de estado: «En 3 horas», «Leve», «En 4 días», «ACTIVO».
-///
-/// `background` y `borderColor` permiten pintar el nivel de la evaluación con
-/// el verde de acento y dejar el resto con el crema de las píldoras neutras.
+/// Píldora de estado: «En 3 horas», «En 4 días», «ACTIVO».
 class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.label,
-    this.t,
-    this.dot = false,
-    this.background,
-    this.borderColor,
-  });
+  const _Pill({required this.label, this.t, this.dot = false});
 
   final String label;
   final PanelTokens? t;
   final bool dot;
-  final Color? background;
-  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1512,9 +1554,9 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: background ?? tokens.badge,
+        color: tokens.badge,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor ?? tokens.badgeBorder),
+        border: Border.all(color: tokens.badgeBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1539,119 +1581,6 @@ class _Pill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Una fila de evaluación: nombre, puntuación, nivel, barra y comentario.
-class _Metric extends StatelessWidget {
-  const _Metric({
-    required this.t,
-    required this.title,
-    required this.score,
-    required this.badge,
-    required this.value,
-    required this.total,
-    required this.note,
-  });
-
-  final PanelTokens t;
-  final String title;
-  final String score;
-  final String badge;
-  final int value;
-  final int total;
-  final String note;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: t.brand, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.body.copyWith(
-                  color: t.textStrong,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              score,
-              style: AppText.body.copyWith(
-                color: t.textStrong,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 10),
-            _Pill(
-              label: badge,
-              t: t,
-              background: t.accent,
-              borderColor: t.accentBorder,
-            ),
-          ],
-        ),
-        const SizedBox(height: 11),
-        _ProgressBar(t: t, value: value, total: total),
-        const SizedBox(height: 10),
-        Text(
-          note,
-          style: AppText.body.copyWith(color: t.textBody, fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
-
-/// Barra de progreso de un cuestionario: PHQ-9 sobre 27, GAD-7 sobre 21.
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({required this.t, required this.value, required this.total});
-
-  final PanelTokens t;
-  final int value;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final ratio = total == 0 ? 0.0 : (value / total).clamp(0.0, 1.0);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        height: 8,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Stack(
-              children: [
-                Container(color: t.track),
-                Container(
-                  width: constraints.maxWidth * ratio,
-                  decoration: BoxDecoration(
-                    color: t.trackFill,
-                    borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(4),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
       ),
     );
   }

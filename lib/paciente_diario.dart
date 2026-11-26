@@ -17,17 +17,17 @@ void _noop() {}
 /// repetir el hex.
 final Color _accentBorder = PanelTokens.light().accentBorder;
 
-/// Vista: diario emocional y actividades del paciente.
+/// Vista: diario emocional del paciente.
 ///
-/// Semana en curso, registro rápido de ánimo, tareas asignadas y evolución.
+/// Semana en curso, registro rápido de ánimo y evolución.
 /// Como el directorio de especialistas, es una vista de una sola apariencia:
 /// usa [AppColors] directamente y la barra inferior compartida con «Diario»
 /// marcado.
 ///
 /// Mantienen estado el nivel de energía, las emociones elegidas y la
-/// reflexión. En modo demo (la cuenta de Karen) la semana, las tareas y la
-/// gráfica son los de la captura; en modo real se leen `tareasPropias` y
-/// `seguimientoPropio`, y donde no hay datos se avisa en vez de inventarlos.
+/// reflexión. En modo demo (la cuenta de Karen) la semana y gráfica son los
+/// de la captura; en modo real se lee `seguimientoPropio` y, donde no hay
+/// datos, se avisa en vez de inventarlos.
 class PacienteDiarioPage extends StatefulWidget {
   const PacienteDiarioPage({super.key, this.auth});
 
@@ -46,9 +46,7 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
   /// `true` si la sesión activa es la cuenta que ve los mockups.
   bool _demo = false;
 
-  /// Tareas propias (`tarea_recomendada`) y últimos registros
-  /// (`seguimiento_diario`) en modo real.
-  List<Map<String, dynamic>> _tareas = const [];
+  /// Últimos registros (`seguimiento_diario`) en modo real.
   List<Map<String, dynamic>> _registros = const [];
 
   /// «Calma moderada»: el nivel con el que llega el diseño (0 a 4).
@@ -68,7 +66,7 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
   }
 
   /// En modo demo no se consulta nada: la pantalla muestra los mockups.
-  /// En modo real se leen las tareas y el seguimiento propios.
+  /// En modo real se lee el seguimiento propio.
   Future<void> _cargarDatos() async {
     try {
       final esDemo = await _auth.esCuentaDemo();
@@ -82,14 +80,10 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
         return;
       }
 
-      final resultados = await Future.wait<Object?>([
-        _auth.tareasPropias(),
-        _auth.seguimientoPropio(),
-      ]);
+      final registros = await _auth.seguimientoPropio();
       if (!mounted) return;
       setState(() {
-        _tareas = (resultados[0] as List<Map<String, dynamic>>?) ?? const [];
-        _registros = (resultados[1] as List<Map<String, dynamic>>?) ?? const [];
+        _registros = registros;
         _cargando = false;
       });
     } catch (_) {
@@ -136,7 +130,9 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
 
     final ok = await _auth.guardarSeguimiento(
       nivelAnimo: (_energy * 25).round(),
-      comentarios: _reflection.text.trim().isEmpty ? null : _reflection.text.trim(),
+      comentarios: _reflection.text.trim().isEmpty
+          ? null
+          : _reflection.text.trim(),
     );
     if (!ok) {
       messenger.showSnackBar(
@@ -228,8 +224,6 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
                       _buildWeek(),
                       const SizedBox(height: 16),
                       _buildQuickLog(),
-                      const SizedBox(height: 26),
-                      _buildTasks(),
                       const SizedBox(height: 26),
                       _buildTrend(),
                       const SizedBox(height: 18),
@@ -452,9 +446,7 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
     }
 
     final entradas =
-        List<({String day, String? mood, _DayState state})>.generate(7, (
-          i,
-        ) {
+        List<({String day, String? mood, _DayState state})>.generate(7, (i) {
           final dia = lunes.add(Duration(days: i));
           final registro = porDia[_claveDia(dia)];
           final esHoy = i == hoy.weekday - 1;
@@ -474,7 +466,11 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
               state: _DayState.today,
             );
           }
-          return (day: _kAxis[i].toUpperCase(), mood: null, state: _DayState.upcoming);
+          return (
+            day: _kAxis[i].toUpperCase(),
+            mood: null,
+            state: _DayState.upcoming,
+          );
         });
 
     var racha = 0;
@@ -555,10 +551,7 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
           ),
           if (!hayEstaSemana) ...[
             const SizedBox(height: 12),
-            AvisoVacio(
-              texto: 'Aún no hay registros esta semana.',
-              t: tokens,
-            ),
+            AvisoVacio(texto: 'Aún no hay registros esta semana.', t: tokens),
           ],
         ],
       ),
@@ -653,7 +646,14 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
             padding: EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               children: [
-                Expanded(child: Text('Agotamiento', style: _tickStyle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: Text(
+                    'Agotamiento',
+                    style: _tickStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 Expanded(
                   child: Text(
                     'Equilibrio',
@@ -769,214 +769,6 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
     );
   }
 
-  // --- Tareas asignadas --------------------------------------------------
-
-  Widget _buildTasks() {
-    if (!_demo) return _buildTasksReal();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.assignment_outlined, size: 22, color: AppColors.brand),
-            SizedBox(width: 9),
-            Expanded(
-              child: PanelSectionHeading(
-                title: 'Tareas Asignadas',
-                color: AppColors.ink,
-                fontSize: 19,
-                // La doctora es la del panel y la del directorio; la captura
-                // traía otro nombre.
-                trailing: Text(
-                  'Dra. Yani Casiani',
-                  style: TextStyle(color: AppColors.inkSoft, fontSize: 12.5),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _buildPrimaryTask(),
-        const SizedBox(height: 12),
-        const _DiaryTaskRow(
-          icon: Icons.check_rounded,
-          done: true,
-          title: 'Caminata consciente y grounding',
-          subtitle: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  'Completado hoy a las 11:00 hrs',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12.5),
-                ),
-              ),
-              SizedBox(width: 5),
-              Icon(Icons.check_rounded, size: 14, color: AppColors.brand),
-            ],
-          ),
-          trailing: SquareIconButton(
-            icon: Icons.visibility_outlined,
-            tooltip: 'Ver tarea completada',
-            onPressed: _noop,
-          ),
-        ),
-        const SizedBox(height: 12),
-        const _DiaryTaskRow(
-          icon: Icons.menu_book_outlined,
-          done: false,
-          title: 'Higiene de sueño y descanso',
-          subtitle: Text(
-            'Recomendada por Dra. Yani Casiani',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.inkSoft, fontSize: 12.5),
-          ),
-          trailing: SoftButton(
-            label: 'Leer ficha',
-            onPressed: _noop,
-            backgroundColor: AppColors.softFill,
-            foregroundColor: AppColors.ink,
-            borderColor: AppColors.border,
-            minWidth: 0,
-            minHeight: 38,
-            padding: EdgeInsets.symmetric(horizontal: 14),
-            fontSize: 13,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Tareas en modo real: las que trae `tareasPropias`.
-  ///
-  /// Sin la doctora de la captura (el nombre del profesional no se expone,
-  /// bloqueo 6.1) y sin la tarea destacada, que era un maqueta.
-  Widget _buildTasksReal() {
-    final tokens = PanelTokens.light();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.assignment_outlined, size: 22, color: AppColors.brand),
-            SizedBox(width: 9),
-            Expanded(
-              child: PanelSectionHeading(
-                title: 'Tareas Asignadas',
-                color: AppColors.ink,
-                fontSize: 19,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        if (_tareas.isEmpty)
-          AvisoVacio(texto: 'Aún no tienes tareas asignadas.', t: tokens)
-        else
-          for (var i = 0; i < _tareas.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            _buildTaskRowReal(_tareas[i]),
-          ],
-      ],
-    );
-  }
-
-  /// Fila de una tarea real: descripción y estado, sin acciones sin flujo.
-  Widget _buildTaskRowReal(Map<String, dynamic> tarea) {
-    final hecha = tarea['completada'] == true;
-    return _DiaryTaskRow(
-      icon: hecha ? Icons.check_rounded : Icons.menu_book_outlined,
-      done: hecha,
-      title: '${tarea['descripcion'] ?? 'Tarea sin descripción'}',
-      subtitle: Text(
-        hecha ? 'Completado' : 'Pendiente',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: hecha ? AppColors.textFaint : AppColors.inkSoft,
-          fontSize: 12.5,
-        ),
-      ),
-      trailing: hecha
-          ? const Icon(Icons.check_rounded, size: 18, color: AppColors.brand)
-          : null,
-    );
-  }
-
-  /// La tarea pendiente destacada, con su etiqueta, duración y botón.
-  Widget _buildPrimaryTask() {
-    return _DiaryCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: _TaskTag(label: 'Terapia Cognitivo-Conductual'),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Registro de Pensamiento Disfuncional (Modelo ABC)',
-            style: TextStyle(
-              color: AppColors.ink,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Identifica el evento activador, tu creencia inmediata y la '
-            'consecuencia emocional.',
-            style: AppText.body.copyWith(
-              color: AppColors.inkSoft,
-              fontSize: 13.5,
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Divider(height: 1, thickness: 1, color: AppColors.divider),
-          const SizedBox(height: 14),
-          const Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.schedule_rounded,
-                      size: 18,
-                      color: AppColors.inkSoft,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '8 minutos aprox.',
-                        style: TextStyle(
-                          color: AppColors.inkSoft,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 12),
-              SizedBox(
-                width: 150,
-                child: PrimaryButton(
-                  label: 'Comenzar',
-                  icon: Icons.arrow_forward_rounded,
-                  onPressed: _noop,
-                  minHeight: 46,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   // --- Evolución ---------------------------------------------------------
 
   Widget _buildTrend() {
@@ -1086,7 +878,8 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
                           ),
                         ),
                         TextSpan(
-                          text: ' después de las sesiones de grounding '
+                          text:
+                              ' después de las sesiones de grounding '
                               'matutinas.',
                         ),
                       ],
@@ -1100,6 +893,7 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
       ),
     );
   }
+
   /// Evolución en modo real: la gráfica se dibuja con los registros de la
   /// semana propia.
   ///
@@ -1132,12 +926,18 @@ class _PacienteDiarioPageState extends State<PacienteDiarioPage> {
       children: [
         Text(
           'Evolución del Estado de Ánimo',
-          style: AppText.panelHeading.copyWith(color: AppColors.ink, fontSize: 19),
+          style: AppText.panelHeading.copyWith(
+            color: AppColors.ink,
+            fontSize: 19,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           'Tendencia semanal de serenidad y valencia',
-          style: AppText.body.copyWith(color: AppColors.inkSoft, fontSize: 13.5),
+          style: AppText.body.copyWith(
+            color: AppColors.inkSoft,
+            fontSize: 13.5,
+          ),
         ),
       ],
     );
@@ -1227,7 +1027,15 @@ const List<String> _kShortMoods = <String>[
 
 /// Serenidad de la captura para la gráfica: lunes a viernes con dato y el
 /// fin de semana sin él (`null` = sin registro).
-const List<double?> _kTrendDemo = <double?>[0.38, 0.52, 0.30, 0.72, 0.86, null, null];
+const List<double?> _kTrendDemo = <double?>[
+  0.38,
+  0.52,
+  0.30,
+  0.72,
+  0.86,
+  null,
+  null,
+];
 
 /// Estado de un día en la tira de la semana.
 enum _DayState { logged, today, upcoming }
@@ -1460,111 +1268,6 @@ class _FeelingChip extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Etiqueta de enfoque de la tarea destacada.
-class _TaskTag extends StatelessWidget {
-  const _TaskTag({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.brandSoft,
-        borderRadius: BorderRadius.circular(AppRadius.soft),
-        border: Border.all(color: _accentBorder),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.brandDark,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-/// Fila de tarea: icono, título, detalle y acción a la derecha.
-///
-/// El título admite dos líneas, para que un nombre largo («Higiene de sueño
-/// y descanso») no quede cortado junto al botón. Una tarea completada va con
-/// el título tachado y apagado, igual que en el panel.
-class _DiaryTaskRow extends StatelessWidget {
-  const _DiaryTaskRow({
-    required this.icon,
-    required this.done,
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final bool done;
-  final String title;
-  final Widget subtitle;
-
-  /// Acción a la derecha. Es opcional: en modo real, donde no hay flujo para
-  /// la acción, la fila se queda sin botón en vez de pintar uno muerto.
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: done ? AppColors.brandSoft : AppColors.softFill,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: done ? _accentBorder : AppColors.border,
-              ),
-            ),
-            child: Icon(icon, size: 20, color: AppColors.brand),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: done ? AppColors.textFaint : AppColors.ink,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                    decoration: done ? TextDecoration.lineThrough : null,
-                    decorationColor: AppColors.textFaint,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                subtitle,
-              ],
-            ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            trailing!,
-          ],
-        ],
       ),
     );
   }
