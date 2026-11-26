@@ -434,7 +434,7 @@ class PacienteAuth {
         'puntaje_total': puntajeTotal,
         'respuestas': respuestas,
         'completado': true,
-        'fecha_completado': DateTime.now().toIso8601String(),
+        'fecha_completado': DateTime.now().toUtc().toIso8601String(),
       });
       return true;
     } on AppConfigException {

@@ -1635,6 +1635,37 @@ void main() {
   );
 
   testWidgets(
+    'una evaluación del mismo día completa la tarea pese al desfase horario',
+    (WidgetTester tester) async {
+      await pumpDashboard(
+        tester,
+        FakePacienteAuth(
+          demo: false,
+          tareas: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'descripcion': 'Completar test PHQ-9',
+              'completada': false,
+              'fecha_asignacion': '2026-11-26T14:00:00Z',
+            },
+          ],
+          evaluaciones: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'completado': true,
+              'fecha_completado': '2026-11-26T09:19:00Z',
+              'respuestas': List<int>.filled(9, 0),
+              'test_psicometrico': <String, dynamic>{'nombre': 'PHQ-9'},
+            },
+          ],
+        ),
+      );
+
+      expect(find.text('No tienes tareas pendientes.'), findsOneWidget);
+      expect(find.textContaining('Completar test '), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'una respuesta sin contestar mantiene pendiente la tarea del test',
     (WidgetTester tester) async {
       await pumpDashboard(

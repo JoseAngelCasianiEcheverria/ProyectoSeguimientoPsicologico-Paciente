@@ -1299,9 +1299,16 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
       final fechaCompletado = DateTime.tryParse(
         '${evaluacion['fecha_completado'] ?? ''}',
       );
-      return fechaAsignacion == null ||
-          fechaCompletado == null ||
-          !fechaCompletado.isBefore(fechaAsignacion);
+      if (fechaAsignacion == null || fechaCompletado == null) return true;
+
+      final asignacionUtc = fechaAsignacion.toUtc();
+      final completadoUtc = fechaCompletado.toUtc();
+      final mismaFechaUtc =
+          asignacionUtc.year == completadoUtc.year &&
+          asignacionUtc.month == completadoUtc.month &&
+          asignacionUtc.day == completadoUtc.day;
+      // Older local timestamps may have been stored as UTC without an offset.
+      return mismaFechaUtc || !completadoUtc.isBefore(asignacionUtc);
     });
   }
 
