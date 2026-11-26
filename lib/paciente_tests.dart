@@ -501,48 +501,50 @@ class _PacienteTestsPageState extends State<PacienteTestsPage> {
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildDeadline(),
-                      const SizedBox(height: 16),
-                      if (sinTests) ...[
-                        AvisoVacio(
-                          texto: 'Aún no hay tests disponibles.',
-                          t: PanelTokens.light(),
-                        ),
+                  child: ResponsiveContent(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildDeadline(),
                         const SizedBox(height: 16),
-                      ] else ...[
-                        _buildTabs(),
-                        const SizedBox(height: 16),
-                        if (disponible && !test!.done) ...[
-                          _buildProgress(test),
-                          const SizedBox(height: 16),
-                          _buildQuestion(test),
-                          if (test.index > 0) ...[
-                            const SizedBox(height: 16),
-                            _buildPrevious(test),
-                          ],
-                        ] else if (disponible) ...[
+                        if (sinTests) ...[
                           AvisoVacio(
-                            texto:
-                                'Test completado. El resultado fue enviado '
-                                'a tu psicólogo.',
+                            texto: 'Aún no hay tests disponibles.',
                             t: PanelTokens.light(),
                           ),
+                          const SizedBox(height: 16),
                         ] else ...[
-                          _buildUnavailable(test!),
+                          _buildTabs(),
+                          const SizedBox(height: 16),
+                          if (disponible && !test!.done) ...[
+                            _buildProgress(test),
+                            const SizedBox(height: 16),
+                            _buildQuestion(test),
+                            if (test.index > 0) ...[
+                              const SizedBox(height: 16),
+                              _buildPrevious(test),
+                            ],
+                          ] else if (disponible) ...[
+                            AvisoVacio(
+                              texto:
+                                  'Test completado. El resultado fue enviado '
+                                  'a tu psicólogo.',
+                              t: PanelTokens.light(),
+                            ),
+                          ] else ...[
+                            _buildUnavailable(test!),
+                          ],
+                          const SizedBox(height: 16),
                         ],
+                        _buildSpecialist(),
                         const SizedBox(height: 16),
+                        const PrivacyNotice(
+                          text: _kConfidentialityNotice,
+                          background: AppColors.softFill,
+                          icon: Icons.lock_outline_rounded,
+                        ),
                       ],
-                      _buildSpecialist(),
-                      const SizedBox(height: 16),
-                      const PrivacyNotice(
-                        text: _kConfidentialityNotice,
-                        background: AppColors.softFill,
-                        icon: Icons.lock_outline_rounded,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

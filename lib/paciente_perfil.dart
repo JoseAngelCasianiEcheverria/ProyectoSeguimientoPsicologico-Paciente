@@ -290,21 +290,23 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTopBar(context),
-                      const SizedBox(height: 12),
-                      _buildDbNotice(),
-                      const SizedBox(height: 18),
-                      _buildProfileCard(),
-                      if (_demo || _acompanante != null) ...[
+                  child: ResponsiveContent(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTopBar(context),
+                        const SizedBox(height: 12),
+                        _buildDbNotice(),
+                        const SizedBox(height: 18),
+                        _buildProfileCard(),
+                        if (_demo || _acompanante != null) ...[
+                          const SizedBox(height: 16),
+                          _buildSupportNetwork(context),
+                        ],
                         const SizedBox(height: 16),
-                        _buildSupportNetwork(context),
+                        _buildLogout(context),
                       ],
-                      const SizedBox(height: 16),
-                      _buildLogout(context),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -327,7 +329,7 @@ class _PacientePerfilPageState extends State<PacientePerfilPage> {
   /// no llegó: nunca un «sin conexión» fijo que no sea cierto.
   Widget _buildDbNotice() {
     final texto = _demo
-        ? 'Sin conexion a la base de datos.'
+        ? 'Sin conexión a la base de datos.'
         : (_datos == null ? 'No se pudieron cargar tus datos.' : null);
     if (texto == null) return const SizedBox.shrink();
 

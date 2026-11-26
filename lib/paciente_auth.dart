@@ -29,7 +29,7 @@ class ResultadoLogin {
   bool get exito => fallo == null;
 
   /// Texto para mostrar en la pantalla de login.
-  String get textoParaUsuario => mensaje ?? 'No pudimos iniciar sesion.';
+  String get textoParaUsuario => mensaje ?? 'No pudimos iniciar sesión.';
 }
 
 /// Resultado de un intento de registro de paciente.
@@ -78,7 +78,7 @@ class PacienteAuth {
     if (limpio.isEmpty || contrasena.isEmpty) {
       return const ResultadoLogin.error(
         FalloDeLogin.credenciales,
-        'Ingresa tu correo y tu contrasena.',
+        'Ingresa tu correo y tu contraseña.',
       );
     }
 
@@ -92,7 +92,7 @@ class PacienteAuth {
       if (resp.session == null) {
         return const ResultadoLogin.error(
           FalloDeLogin.credenciales,
-          'Correo o contrasena incorrectos.',
+          'Correo o contraseña incorrectos.',
         );
       }
       return const ResultadoLogin.ok();
@@ -101,12 +101,12 @@ class PacienteAuth {
     } on AppConfigException {
       return const ResultadoLogin.error(
         FalloDeLogin.red,
-        'Sin conexion a la base de datos.',
+        'Sin conexión a la base de datos.',
       );
     } catch (_) {
       return const ResultadoLogin.error(
         FalloDeLogin.red,
-        'Sin conexion a la base de datos.',
+        'Sin conexión a la base de datos.',
       );
     }
   }
@@ -173,9 +173,9 @@ class PacienteAuth {
     } on AuthException catch (e) {
       return _traducirRegistro(e);
     } on AppConfigException {
-      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
+      return const ResultadoRegistro.error('Sin conexión a la base de datos.');
     } catch (_) {
-      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
+      return const ResultadoRegistro.error('Sin conexión a la base de datos.');
     }
   }
 
@@ -188,7 +188,7 @@ class PacienteAuth {
         mensaje.contains('already registered') ||
         mensaje.contains('already been registered')) {
       return const ResultadoRegistro.error(
-        'Ya existe una cuenta con ese correo. Inicia sesion.',
+        'Ya existe una cuenta con ese correo. Inicia sesión.',
       );
     }
     if (codigo == 'weak_password' ||
@@ -196,7 +196,7 @@ class PacienteAuth {
         mensaje.contains('leaked') ||
         mensaje.contains('breached')) {
       return const ResultadoRegistro.error(
-        'Esa contrasena aparece en listas de filtradas. Usa otra.',
+        'Esa contraseña aparece en listas de contraseñas filtradas. Usa otra.',
       );
     }
     if (codigo == 'over_email_send_rate_limit' ||
@@ -215,7 +215,7 @@ class PacienteAuth {
         mensaje.contains('failed to fetch') ||
         mensaje.contains('network') ||
         mensaje.contains('timeout')) {
-      return const ResultadoRegistro.error('Sin conexion a la base de datos.');
+      return const ResultadoRegistro.error('Sin conexión a la base de datos.');
     }
     return const ResultadoRegistro.error(
       'No pudimos crear la cuenta. Intenta de nuevo.',
@@ -394,13 +394,13 @@ class PacienteAuth {
     } on PostgrestException catch (e) {
       _errorSeguimiento = switch (e.code) {
         '23503' =>
-          'Tu perfil de paciente no esta completo. Contacta con soporte.',
-        '42501' => 'Tu sesion expiro. Vuelve a iniciar sesion.',
-        _ => 'No se pudo guardar tu animo. Intenta de nuevo.',
+          'Tu perfil de paciente no está completo. Contacta con soporte.',
+        '42501' => 'Tu sesión expiró. Vuelve a iniciar sesión.',
+        _ => 'No se pudo guardar tu ánimo. Intenta de nuevo.',
       };
       return false;
     } catch (_) {
-      _errorSeguimiento = 'Sin conexion a la base de datos.';
+      _errorSeguimiento = 'Sin conexión a la base de datos.';
       return false;
     }
   }
@@ -695,7 +695,7 @@ class PacienteAuth {
       if (idPaciente == null) {
         _errorReserva =
             'Tu cuenta no tiene perfil de paciente. '
-            'Vuelve a iniciar sesion.';
+            'Vuelve a iniciar sesión.';
         return null;
       }
       final cliente = await _cliente;
@@ -718,18 +718,18 @@ class PacienteAuth {
     } on PostgrestException catch (e) {
       _errorReserva = switch (e.code) {
         '23505' => 'Ese horario acaba de ser reservado. Elige otro.',
-        '23514' => 'Ese horario ya no esta disponible. Elige otro.',
+        '23514' => 'Ese horario ya no está disponible. Elige otro.',
         '23503' =>
-          'Tu perfil de paciente no esta completo. Contacta con soporte.',
-        '42501' => 'Tu sesion expiro. Vuelve a iniciar sesion.',
+          'Tu perfil de paciente no está completo. Contacta con soporte.',
+        '42501' => 'Tu sesión expiró. Vuelve a iniciar sesión.',
         _ => 'No se pudo reservar la cita. Intenta de nuevo.',
       };
       return null;
     } on AppConfigException {
-      _errorReserva = 'Sin conexion a la base de datos.';
+      _errorReserva = 'Sin conexión a la base de datos.';
       return null;
     } catch (_) {
-      _errorReserva = 'Sin conexion a la base de datos.';
+      _errorReserva = 'Sin conexión a la base de datos.';
       return null;
     }
   }
@@ -847,7 +847,7 @@ class PacienteAuth {
       final id = await cliente.rpc('mi_usuario_id');
       final idInt = id is int ? id : int.tryParse('$id');
       if (idInt == null) {
-        _errorContacto = 'Tu sesion expiro. Vuelve a iniciar sesion.';
+        _errorContacto = 'Tu sesión expiró. Vuelve a iniciar sesión.';
         return false;
       }
       await cliente
@@ -860,14 +860,14 @@ class PacienteAuth {
       return true;
     } on PostgrestException catch (e) {
       _errorContacto = e.code == '42703'
-          ? 'Falta aplicar la migracion de direccion en la base de datos.'
-          : 'No se pudo guardar tu informacion. Intenta de nuevo.';
+          ? 'Falta aplicar la migración de dirección en la base de datos.'
+          : 'No se pudo guardar tu información. Intenta de nuevo.';
       return false;
     } on AppConfigException {
-      _errorContacto = 'Sin conexion a la base de datos.';
+      _errorContacto = 'Sin conexión a la base de datos.';
       return false;
     } catch (_) {
-      _errorContacto = 'No se pudo guardar tu informacion. Intenta de nuevo.';
+      _errorContacto = 'No se pudo guardar tu información. Intenta de nuevo.';
       return false;
     }
   }
@@ -1062,7 +1062,7 @@ class PacienteAuth {
     if (codigo == 'email_not_confirmed' || mensaje.contains('not confirmed')) {
       return const ResultadoLogin.error(
         FalloDeLogin.correoSinConfirmar,
-        'Tu correo aun no esta confirmado. Revisa tu bandeja de entrada.',
+        'Tu correo aún no está confirmado. Revisa tu bandeja de entrada.',
       );
     }
     if (codigo == 'weak_password' ||
@@ -1071,13 +1071,13 @@ class PacienteAuth {
         mensaje.contains('breached')) {
       return const ResultadoLogin.error(
         FalloDeLogin.contrasenaFiltrada,
-        'Esa contrasena aparece en listas de filtradas. Cambiala por otra.',
+        'Esa contraseña aparece en listas de contraseñas filtradas. Cámbiala por otra.',
       );
     }
     if (codigo == 'invalid_credentials' || mensaje.contains('invalid login')) {
       return const ResultadoLogin.error(
         FalloDeLogin.credenciales,
-        'Correo o contrasena incorrectos.',
+        'Correo o contraseña incorrectos.',
       );
     }
     if (mensaje.contains('socket') ||
@@ -1087,12 +1087,12 @@ class PacienteAuth {
         mensaje.contains('timeout')) {
       return const ResultadoLogin.error(
         FalloDeLogin.red,
-        'Sin conexion a la base de datos.',
+        'Sin conexión a la base de datos.',
       );
     }
     return const ResultadoLogin.error(
       FalloDeLogin.desconocido,
-      'No pudimos iniciar sesion. Intenta de nuevo.',
+      'No pudimos iniciar sesión. Intenta de nuevo.',
     );
   }
 }

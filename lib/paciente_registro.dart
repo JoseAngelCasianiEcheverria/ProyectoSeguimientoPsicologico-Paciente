@@ -80,7 +80,7 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Acepta los terminos para continuar.')),
+        const SnackBar(content: Text('Acepta los términos para continuar.')),
       );
       return;
     }
@@ -206,7 +206,7 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Sin conexion a la base de datos.',
+              'Sin conexión a la base de datos.',
               style: AppText.bodySmall.copyWith(color: AppColors.inkSoft),
             ),
           ),

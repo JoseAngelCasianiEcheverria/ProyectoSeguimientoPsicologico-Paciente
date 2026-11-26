@@ -278,26 +278,28 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeader(t),
-                        const SizedBox(height: 20),
-                        _buildGreeting(t),
-                        const SizedBox(height: 16),
-                        _buildPerfilIncompleto(t),
-                        _buildMoodPicker(t),
-                        const SizedBox(height: 16),
-                        _buildDbNotice(t),
-                        const SizedBox(height: 14),
-                        _buildAppointment(t),
-                        const SizedBox(height: 30),
-                        _buildEvaluations(t),
-                        const SizedBox(height: 30),
-                        _buildTasks(t),
-                        const SizedBox(height: 16),
-                        _buildCompanion(t),
-                      ],
+                    child: ResponsiveContent(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHeader(t),
+                          const SizedBox(height: 20),
+                          _buildGreeting(t),
+                          const SizedBox(height: 16),
+                          _buildPerfilIncompleto(t),
+                          _buildMoodPicker(t),
+                          const SizedBox(height: 16),
+                          _buildDbNotice(t),
+                          const SizedBox(height: 14),
+                          _buildAppointment(t),
+                          const SizedBox(height: 30),
+                          _buildEvaluations(t),
+                          const SizedBox(height: 30),
+                          _buildTasks(t),
+                          const SizedBox(height: 16),
+                          _buildCompanion(t),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -650,7 +652,7 @@ class _PacienteInicioPageState extends State<PacienteInicioPage> {
   /// no llegó: nunca se muestra un «sin conexión» fijo que no sea cierto.
   Widget _buildDbNotice(PanelTokens t) {
     final texto = _demo
-        ? 'Sin conexion a la base de datos.'
+        ? 'Sin conexión a la base de datos.'
         : (_datos == null ? 'No se pudieron cargar tus datos.' : null);
     if (texto == null) return const SizedBox.shrink();
 

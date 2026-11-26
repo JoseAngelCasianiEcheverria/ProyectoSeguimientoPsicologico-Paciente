@@ -161,36 +161,38 @@ class _PacienteSalaPageState extends State<PacienteSalaPage> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSpecialist(),
-                    const SizedBox(height: 20),
-                    PrimaryButton(
-                      label: 'Unirse a la Videollamada Ahora',
-                      icon: Icons.videocam_outlined,
-                      minHeight: 48,
-                      onPressed: _abrirVideollamada,
-                    ),
-                    const SizedBox(height: 10),
-                    SoftButton(
-                      label: 'Enviar mensaje breve al profesional',
-                      icon: Icons.chat_bubble_outline_rounded,
-                      minHeight: 48,
-                      backgroundColor: AppColors.chipBg,
-                      foregroundColor: AppColors.ink,
-                      borderColor: AppColors.border,
-                      onPressed: _abrirChat,
-                    ),
-                    const SizedBox(height: 16),
-                    const PrivacyNotice(
-                      text:
-                          'La videollamada se abre en el navegador con el '
-                          'enlace de tu sesión.',
-                      background: AppColors.softFill,
-                      icon: Icons.lock_outline_rounded,
-                    ),
-                  ],
+                child: ResponsiveContent(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSpecialist(),
+                      const SizedBox(height: 20),
+                      PrimaryButton(
+                        label: 'Unirse a la Videollamada Ahora',
+                        icon: Icons.videocam_outlined,
+                        minHeight: 48,
+                        onPressed: _abrirVideollamada,
+                      ),
+                      const SizedBox(height: 10),
+                      SoftButton(
+                        label: 'Enviar mensaje breve al profesional',
+                        icon: Icons.chat_bubble_outline_rounded,
+                        minHeight: 48,
+                        backgroundColor: AppColors.chipBg,
+                        foregroundColor: AppColors.ink,
+                        borderColor: AppColors.border,
+                        onPressed: _abrirChat,
+                      ),
+                      const SizedBox(height: 16),
+                      const PrivacyNotice(
+                        text:
+                            'La videollamada se abre en el navegador con el '
+                            'enlace de tu sesión.',
+                        background: AppColors.softFill,
+                        icon: Icons.lock_outline_rounded,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -433,7 +435,9 @@ class _PacienteChatSheetState extends State<PacienteChatSheet> {
                               : Alignment.centerLeft,
                           child: ConstrainedBox(
                             constraints: BoxConstraints(
-                              maxWidth: MediaQuery.sizeOf(context).width * 0.76,
+                              maxWidth: MediaQuery.sizeOf(context).width > 800
+                                  ? 640
+                                  : MediaQuery.sizeOf(context).width * 0.76,
                             ),
                             child: Container(
                               padding: const EdgeInsets.symmetric(

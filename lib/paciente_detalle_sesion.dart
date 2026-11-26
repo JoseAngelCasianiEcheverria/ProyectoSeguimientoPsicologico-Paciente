@@ -214,9 +214,9 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
           content: Text(
             cita == null
                 ? (_auth.errorReserva ??
-                    'No se pudo reservar la cita. El horario puede estar tomado.')
+                      'No se pudo reservar la cita. El horario puede estar tomado.')
                 : 'Cita reservada: ${reserva.dateLabel}, '
-                    '${reserva.startTime} hrs.',
+                      '${reserva.startTime} hrs.',
           ),
         ),
       );
@@ -232,28 +232,30 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTopBar(),
-              const SizedBox(height: 18),
-              _buildHoldBanner(),
-              const SizedBox(height: 14),
-              _buildSpecialist(reserva),
-              const SizedBox(height: 14),
-              if (!reserva.esReal) ...[
-                _buildBenefit(),
+          child: ResponsiveContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildTopBar(),
+                const SizedBox(height: 18),
+                _buildHoldBanner(),
                 const SizedBox(height: 14),
-                _buildPaymentMethod(),
+                _buildSpecialist(reserva),
                 const SizedBox(height: 14),
-              ] else
-                _buildTarifaReal(reserva),
-              _buildRequirements(),
-              const SizedBox(height: 16),
-              _buildConfirm(),
-              const SizedBox(height: 14),
-              _buildFooter(),
-            ],
+                if (!reserva.esReal) ...[
+                  _buildBenefit(),
+                  const SizedBox(height: 14),
+                  _buildPaymentMethod(),
+                  const SizedBox(height: 14),
+                ] else
+                  _buildTarifaReal(reserva),
+                _buildRequirements(),
+                const SizedBox(height: 16),
+                _buildConfirm(),
+                const SizedBox(height: 14),
+                _buildFooter(),
+              ],
+            ),
           ),
         ),
       ),
@@ -359,7 +361,9 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _expired ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                  _expired
+                      ? Icons.lock_open_rounded
+                      : Icons.lock_outline_rounded,
                   size: 17,
                   color: _expired ? AppColors.error : AppColors.brandDark,
                 ),
@@ -391,10 +395,7 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Avatar(
-                initials: reserva.initials,
-                url: reserva.avatarUrl,
-              ),
+              _Avatar(initials: reserva.initials, url: reserva.avatarUrl),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -620,7 +621,9 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 1),
                   child: Icon(
-                    _benefit ? Icons.star_outline_rounded : Icons.info_outline_rounded,
+                    _benefit
+                        ? Icons.star_outline_rounded
+                        : Icons.info_outline_rounded,
                     size: 21,
                     color: AppColors.brand,
                   ),
@@ -645,9 +648,9 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
                       Text(
                         _benefit
                             ? 'Cubierto al 100% por el plan de bienestar '
-                                'integral de tu empresa.'
+                                  'integral de tu empresa.'
                             : 'Pagarás la tarifa base completa. Puedes '
-                                'reactivarlo cuando quieras.',
+                                  'reactivarlo cuando quieras.',
                         style: const TextStyle(
                           color: AppColors.inkSoft,
                           fontSize: 13,
@@ -751,7 +754,10 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.chipBg,
                   borderRadius: BorderRadius.circular(AppRadius.soft),
@@ -786,15 +792,8 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
   // --- Requisitos --------------------------------------------------------
 
   Widget _buildRequirements() {
-    const body = TextStyle(
-      color: AppColors.inkSoft,
-      fontSize: 14,
-      height: 1.5,
-    );
-    const strong = TextStyle(
-      color: AppColors.ink,
-      fontWeight: FontWeight.w700,
-    );
+    const body = TextStyle(color: AppColors.inkSoft, fontSize: 14, height: 1.5);
+    const strong = TextStyle(color: AppColors.ink, fontWeight: FontWeight.w700);
 
     return _SesionCard(
       child: Column(
@@ -826,7 +825,8 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
                         style: body,
                         children: [
                           TextSpan(
-                            text: 'Deberás completar tu test psicométrico '
+                            text:
+                                'Deberás completar tu test psicométrico '
                                 'confidencial (',
                           ),
                           TextSpan(text: 'PHQ-9', style: strong),
@@ -835,7 +835,8 @@ class _PacienteDetalleSesionPageState extends State<PacienteDetalleSesionPage> {
                           TextSpan(text: ') hasta '),
                           TextSpan(text: '2 horas antes', style: strong),
                           TextSpan(
-                            text: ' de la cita para habilitar el enlace '
+                            text:
+                                ' de la cita para habilitar el enlace '
                                 'seguro de acceso a la sala virtual.',
                           ),
                         ],

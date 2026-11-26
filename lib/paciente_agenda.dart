@@ -26,11 +26,7 @@ void _noop() {}
 /// «Reservar Cita» abre el detalle de la sesión con la hora elegida; si no hay
 /// hora elegida, avisa en vez de abrirlo.
 class PacienteAgendaPage extends StatefulWidget {
-  const PacienteAgendaPage({
-    super.key,
-    this.auth,
-    this.initialDateIndex = 1,
-  });
+  const PacienteAgendaPage({super.key, this.auth, this.initialDateIndex = 1});
 
   /// Servicio de datos. Permite inyectar un doble en las pruebas; si es
   /// `null` se crea uno y la pantalla decide entre mockups y datos reales.
@@ -61,8 +57,15 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
   /// Horas de cada especialista por día (`yyyy-MM-dd`) con su
   /// `id_disponibilidad` y duración: la tarjeta solo muestra las del día
   /// elegido y la reserva viaja con los datos reales de ese hueco.
-  final Map<String, Map<String, List<({String hora, int id, int? duracionMinutos})>>> _horarios =
-      <String, Map<String, List<({String hora, int id, int? duracionMinutos})>>>{};
+  final Map<
+    String,
+    Map<String, List<({String hora, int id, int? duracionMinutos})>>
+  >
+  _horarios =
+      <
+        String,
+        Map<String, List<({String hora, int id, int? duracionMinutos})>>
+      >{};
 
   /// Índice de [_dias] marcado en la tira real.
   int _diaReal = 0;
@@ -110,18 +113,25 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
       final filas = await _auth.catalogoPsicologos();
       final directorio = await _auth.directorioPsicologos();
       final resultado = <_Specialist>[];
-      final mapa = <String, Map<String, List<({String hora, int id, int? duracionMinutos})>>>{};
+      final mapa =
+          <
+            String,
+            Map<String, List<({String hora, int id, int? duracionMinutos})>>
+          >{};
       final dias = <String, DateTime>{};
       for (final fila in filas) {
         final id = _comoEntero(fila['id_psicologo']) ?? 0;
         final psi = directorio[id];
-        final nombre = psi?.nombre.isEmpty ?? true ? 'Profesional #$id' : psi!.nombre;
+        final nombre = psi?.nombre.isEmpty ?? true
+            ? 'Profesional #$id'
+            : psi!.nombre;
         final disponibilidad = await _auth.disponibilidadDe(id);
         final tarifa = _comoEntero(fila['tarifa_base']) ?? 0;
         final tarifaTexto = tarifa > 0
             ? r'$' + tarifa.toString()
             : 'Tarifa no informada';
-        final porDia = <String, List<({String hora, int id, int? duracionMinutos})>>{};
+        final porDia =
+            <String, List<({String hora, int id, int? duracionMinutos})>>{};
         final horas = <String>[];
         for (final hueco in disponibilidad) {
           final inicio = DateTime.tryParse('${hueco['fecha_hora_inicio']}');
@@ -130,15 +140,19 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
           final duracion = fin?.difference(inicio).inMinutes;
           // La hora es la hora de pared del psicólogo (la base guarda UTC y
           // el portal la escribe igual), así que se lee tal cual.
-          final hora = '${inicio.hour.toString().padLeft(2, '0')}:'
+          final hora =
+              '${inicio.hour.toString().padLeft(2, '0')}:'
               '${inicio.minute.toString().padLeft(2, '0')}';
           final dia = DateTime(inicio.year, inicio.month, inicio.day);
           final clave = _claveDia(dia);
-          (porDia[clave] ??= <({String hora, int id, int? duracionMinutos})>[]).add((
-            hora: hora,
-            id: _comoEntero(hueco['id_disponibilidad']) ?? 0,
-            duracionMinutos: duracion != null && duracion > 0 ? duracion : null,
-          ));
+          (porDia[clave] ??= <({String hora, int id, int? duracionMinutos})>[])
+              .add((
+                hora: hora,
+                id: _comoEntero(hueco['id_disponibilidad']) ?? 0,
+                duracionMinutos: duracion != null && duracion > 0
+                    ? duracion
+                    : null,
+              ));
           dias[clave] = dia;
           if (!horas.contains(hora)) horas.add(hora);
         }
@@ -190,12 +204,11 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
   }
 
   static int? _comoEntero(Object? valor) => switch (valor) {
-        int() => valor,
-        num() => valor.toInt(),
-        String() => int.tryParse(valor) ??
-            double.tryParse(valor)?.toInt(),
-        _ => null,
-      };
+    int() => valor,
+    num() => valor.toInt(),
+    String() => int.tryParse(valor) ?? double.tryParse(valor)?.toInt(),
+    _ => null,
+  };
 
   /// Tarjetas que casan con la búsqueda (sobre los datos del modo activo).
   List<_Specialist> get _results {
@@ -225,7 +238,9 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
   DateTime? get _diaElegido => _dias.isEmpty ? null : _dias[_diaReal];
 
   /// Horas de la tarjeta para el día elegido; la captura usa sus literales.
-  List<({String hora, int id, int? duracionMinutos})> _horasDe(_Specialist specialist) {
+  List<({String hora, int id, int? duracionMinutos})> _horasDe(
+    _Specialist specialist,
+  ) {
     final dia = _diaElegido;
     if (_demo || dia == null || specialist.idPsicologo == null) return const [];
     return _horarios[specialist.id]?[_claveDia(dia)] ?? const [];
@@ -264,9 +279,7 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
     if (_cargando) {
       return const Scaffold(
         backgroundColor: AppColors.canvas,
-        body: SafeArea(
-          child: Center(child: CircularProgressIndicator()),
-        ),
+        body: SafeArea(child: Center(child: CircularProgressIndicator())),
       );
     }
 
@@ -288,34 +301,36 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTopBar(),
-                      const SizedBox(height: 22),
-                      _buildEyebrow(),
-                      const SizedBox(height: 14),
-                      _buildTitleBlock(),
-                      const SizedBox(height: 16),
-                      _buildSearch(),
-                      const SizedBox(height: 12),
-                      _buildModality(),
-                      const SizedBox(height: 12),
-                      // En modo real no hay especialidades de la captura (la
-                      // tabla `psicologo` no tiene esa columna); la tira de
-                      // fechas sí existe, pero con los días que tienen huecos.
-                      if (_demo) ...[
-                        _buildSpecialties(),
+                  child: ResponsiveContent(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTopBar(),
                         const SizedBox(height: 22),
-                        _buildDates(),
-                      ] else ...[
-                        _buildRealNotice(),
+                        _buildEyebrow(),
                         const SizedBox(height: 14),
-                        _buildRealDates(),
+                        _buildTitleBlock(),
+                        const SizedBox(height: 16),
+                        _buildSearch(),
+                        const SizedBox(height: 12),
+                        _buildModality(),
+                        const SizedBox(height: 12),
+                        // En modo real no hay especialidades de la captura (la
+                        // tabla `psicologo` no tiene esa columna); la tira de
+                        // fechas sí existe, pero con los días que tienen huecos.
+                        if (_demo) ...[
+                          _buildSpecialties(),
+                          const SizedBox(height: 22),
+                          _buildDates(),
+                        ] else ...[
+                          _buildRealNotice(),
+                          const SizedBox(height: 14),
+                          _buildRealDates(),
+                        ],
+                        const SizedBox(height: 14),
+                        ..._buildResults(results),
                       ],
-                      const SizedBox(height: 14),
-                      ..._buildResults(results),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -420,8 +435,11 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18,
-              color: AppColors.inkSoft),
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColors.inkSoft,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -527,7 +545,10 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
                 focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
                 hintText: 'Buscar por nombre, motivo o enfoque...',
-                hintStyle: TextStyle(color: AppColors.textFaint, fontSize: 13.5),
+                hintStyle: TextStyle(
+                  color: AppColors.textFaint,
+                  fontSize: 13.5,
+                ),
               ),
             ),
           ),
@@ -710,7 +731,7 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
       title = dia == null
           ? 'Sin día seleccionado:'
           : 'Disponibilidad ${_kWeekdayShort[dia.weekday - 1]} '
-              '${dia.day}:';
+                '${dia.day}:';
       note = slots.isEmpty ? 'Sin horarios' : 'Horarios reales';
     }
     return _SpecialistCard(
@@ -742,11 +763,15 @@ class _PacienteAgendaPageState extends State<PacienteAgendaPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Elige una hora para reservar tu cita.')),
+          const SnackBar(
+            content: Text('Elige una hora para reservar tu cita.'),
+          ),
         );
       return;
     }
-    if (!_demo && specialist.idPsicologo != null && _idSlot(specialist) == null) {
+    if (!_demo &&
+        specialist.idPsicologo != null &&
+        _idSlot(specialist) == null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -849,18 +874,40 @@ class _DayOption {
 
 /// Días de la semana en tres letras para la tira (empezando en lunes).
 const _kWeekdayShort = <String>[
-  'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM',
+  'LUN',
+  'MAR',
+  'MIÉ',
+  'JUE',
+  'VIE',
+  'SÁB',
+  'DOM',
 ];
 
 /// Días de la semana en largo, para la fecha que lee «Detalle de Sesión».
 const _kWeekdays = <String>[
-  'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
 ];
 
 /// Meses en largo: el encabezado de la tira y la fecha del detalle.
 const _kMonths = <String>[
-  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
 ];
 
 /// Fechas de septiembre de 2026 que muestra la captura.
@@ -1479,7 +1526,11 @@ class _VerifiedAvatar extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 1.5),
               ),
-              child: const Icon(Icons.check_rounded, size: 11, color: Colors.white),
+              child: const Icon(
+                Icons.check_rounded,
+                size: 11,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -1553,8 +1604,10 @@ class _SlotButton extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)
-              .copyWith(color: color),
+          style: const TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
+          ).copyWith(color: color),
         ),
       ),
     );
@@ -1579,7 +1632,11 @@ class _EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.search_off_rounded, size: 26, color: AppColors.inkSoft),
+          const Icon(
+            Icons.search_off_rounded,
+            size: 26,
+            color: AppColors.inkSoft,
+          ),
           const SizedBox(height: 10),
           Text(
             'Sin especialistas',

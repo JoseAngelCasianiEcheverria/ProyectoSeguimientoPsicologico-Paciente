@@ -32,8 +32,9 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
     bool requiereAcompanante,
     String documento,
     String telefono,
-    String direccion
-  })? _datosPaciente;
+    String direccion,
+  })?
+  _datosPaciente;
   Map<String, dynamic>? _acompanante;
   Map<String, dynamic>? _cita;
   Map<int, ({String nombre, String? avatarUrl})> _directorio = const {};
@@ -64,14 +65,16 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
       ]);
       if (!mounted) return;
       setState(() {
-        _datosPaciente = resultados[0] as ({
-          String nombre,
-          String correo,
-          bool requiereAcompanante,
-          String documento,
-          String telefono,
-          String direccion
-        })?;
+        _datosPaciente =
+            resultados[0]
+                as ({
+                  String nombre,
+                  String correo,
+                  bool requiereAcompanante,
+                  String documento,
+                  String telefono,
+                  String direccion,
+                })?;
         _acompanante = resultados[1] as Map<String, dynamic>?;
         _cita = resultados[2] as Map<String, dynamic>?;
         _directorio =
@@ -139,55 +142,57 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _PortalHeader(),
-                    _buildNotice(),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Portal de acompañamiento',
-                      style: TextStyle(
-                        color: AppColors.ink,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
+                child: ResponsiveContent(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _PortalHeader(),
+                      _buildNotice(),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Portal de acompañamiento',
+                        style: TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _demo
-                          ? 'Consulta autorizada para Oscar Flerez'
-                          : (nombreAcomp.isNotEmpty
-                              ? 'Consulta autorizada para $nombreAcomp'
-                              : 'Consulta autorizada'),
-                      style: const TextStyle(
-                        color: AppColors.inkSoft,
-                        fontSize: 14,
+                      const SizedBox(height: 6),
+                      Text(
+                        _demo
+                            ? 'Consulta autorizada para Oscar Flerez'
+                            : (nombreAcomp.isNotEmpty
+                                  ? 'Consulta autorizada para $nombreAcomp'
+                                  : 'Consulta autorizada'),
+                        style: const TextStyle(
+                          color: AppColors.inkSoft,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    if (!_demo && _acompanante == null) ...[
-                      const AvisoVacio(
-                        texto: 'Aún no tienes acompañante vinculado.',
+                      const SizedBox(height: 20),
+                      if (!_demo && _acompanante == null) ...[
+                        const AvisoVacio(
+                          texto: 'Aún no tienes acompañante vinculado.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      _buildPatientSummary(),
+                      const SizedBox(height: 16),
+                      _buildUpcomingSession(context),
+                      const SizedBox(height: 16),
+                      _RestrictedAction(
+                        icon: Icons.notifications_active_outlined,
+                        title: 'Alertas de contingencia',
+                        subtitle: 'Inasistencia y alertas OPER 1',
+                        onPressed: () => _showProtectedNotice(
+                          context,
+                          'Las alertas reales requieren acceso propio del acompañante.',
+                        ),
                       ),
                       const SizedBox(height: 16),
+                      const _ProtectedSection(),
                     ],
-                    _buildPatientSummary(),
-                    const SizedBox(height: 16),
-                    _buildUpcomingSession(context),
-                    const SizedBox(height: 16),
-                    _RestrictedAction(
-                      icon: Icons.notifications_active_outlined,
-                      title: 'Alertas de contingencia',
-                      subtitle: 'Inasistencia y alertas OPER 1',
-                      onPressed: () => _showProtectedNotice(
-                        context,
-                        'Las alertas reales requieren acceso propio del acompañante.',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const _ProtectedSection(),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -202,7 +207,7 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
       return const Column(
         children: [
           SizedBox(height: 16),
-          _AccessNotice(texto: 'Sin conexion a la base de datos.'),
+          _AccessNotice(texto: 'Sin conexión a la base de datos.'),
         ],
       );
     }
@@ -219,15 +224,10 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
 
   Widget _buildPatientSummary() {
     if (_demo) {
-      return const _PatientSummary(
-        nombre: 'Karen Lucía',
-        initials: 'KL',
-      );
+      return const _PatientSummary(nombre: 'Karen Lucía', initials: 'KL');
     }
     if (_datosPaciente == null) {
-      return const AvisoVacio(
-        texto: 'No se encontraron datos del paciente.',
-      );
+      return const AvisoVacio(texto: 'No se encontraron datos del paciente.');
     }
     final nombre = _datosPaciente!.nombre.trim();
     return _PatientSummary(
@@ -241,16 +241,12 @@ class _PacienteAcompanantePageState extends State<PacienteAcompanantePage> {
       return _UpcomingSession(
         fechaTexto: 'Hoy, 18:30 - 19:20',
         profesionalTexto: 'Sesión en línea con la Dra. Yani Casiani',
-        onDetalle: () => _showProtectedNotice(
-          context,
-          'Sin conexion a la base de datos.',
-        ),
+        onDetalle: () =>
+            _showProtectedNotice(context, 'Sin conexión a la base de datos.'),
       );
     }
     if (_cita == null) {
-      return const AvisoVacio(
-        texto: 'Aún no tienes citas programadas.',
-      );
+      return const AvisoVacio(texto: 'Aún no tienes citas programadas.');
     }
     final fecha = _formatearFechaHora(_cita!['fecha_hora'] as String?);
     final idPsicologo = int.tryParse('${_cita!['id_psicologo'] ?? ''}');
@@ -347,10 +343,7 @@ class _AccessNotice extends StatelessWidget {
 }
 
 class _PatientSummary extends StatelessWidget {
-  const _PatientSummary({
-    required this.nombre,
-    required this.initials,
-  });
+  const _PatientSummary({required this.nombre, required this.initials});
 
   final String nombre;
   final String initials;

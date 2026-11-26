@@ -10,7 +10,7 @@ import 'widgets.dart';
 /// Vista 18 adaptada a paciente: acceso al portal del paciente.
 ///
 /// La marca es el archivo del proyecto, como en la cabecera del directorio de
-/// especialistas. El botón de Google y el de soporte solo conservan el aspecto.
+/// especialistas.
 class PacienteLoginPage extends StatefulWidget {
   const PacienteLoginPage({super.key, this.auth});
 
@@ -121,9 +121,6 @@ class _PacienteLoginPageState extends State<PacienteLoginPage> {
                     const SizedBox(height: 18),
                   ],
                   _buildFormCard(),
-                  const SizedBox(height: 18),
-                  _buildSupport(),
-                  const SizedBox(height: 14),
                   _buildRegisterCard(),
                 ],
               ),
@@ -150,7 +147,7 @@ class _PacienteLoginPageState extends State<PacienteLoginPage> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Sin conexion a la base de datos.',
+              'Sin conexión a la base de datos.',
               style: AppText.bodySmall.copyWith(color: AppColors.inkSoft),
             ),
           ),
@@ -275,41 +272,6 @@ class _PacienteLoginPageState extends State<PacienteLoginPage> {
               icon: Icons.arrow_forward_rounded,
               onPressed: _submitting ? null : _submit,
             ),
-            const SizedBox(height: 26),
-            const _ContinueDivider(),
-            const SizedBox(height: 22),
-            _buildGoogleButton(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Entrada con Google. Es el único botón con marca ajena, así que no sale de
-  /// [SoftButton] (que solo admite iconos de Material).
-  Widget _buildGoogleButton() {
-    return SizedBox(
-      height: 50,
-      child: OutlinedButton(
-        onPressed: () =>
-            _pending('El acceso con Google todavía no está disponible.'),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.ink,
-          side: const BorderSide(color: AppColors.border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.field),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _GoogleMark(size: 18),
-            SizedBox(width: 10),
-            Text(
-              'Google',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
           ],
         ),
       ),
@@ -365,28 +327,6 @@ class _PacienteLoginPageState extends State<PacienteLoginPage> {
 
   // --- Acceso y alta ------------------------------------------------------
 
-  /// Fila de soporte, fuera de la tarjeta.
-  Widget _buildSupport() {
-    return Row(
-      children: [
-        Icon(Icons.headset_mic_outlined, size: 22, color: AppColors.inkSoft),
-        const SizedBox(width: 14),
-        Expanded(
-          child: InkWell(
-            onTap: () => _pending('El canal de soporte todavía no está disponible.'),
-            child: Text(
-              '¿Problemas para acceder a tu sesión? Contactar soporte',
-              style: AppText.body.copyWith(
-                color: AppColors.inkSoft,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildRegisterCard() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -429,88 +369,4 @@ class _PacienteLoginPageState extends State<PacienteLoginPage> {
       ),
     );
   }
-}
-
-/// Separador con texto: «O continúa con».
-class _ContinueDivider extends StatelessWidget {
-  const _ContinueDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(child: Divider(height: 1, thickness: 1, color: AppColors.border)),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'O continúa con',
-            style: TextStyle(color: AppColors.inkSoft, fontSize: 12.5),
-          ),
-        ),
-        Expanded(child: Divider(height: 1, thickness: 1, color: AppColors.border)),
-      ],
-    );
-  }
-}
-
-/// «G» de Google con los cuatro colores de la marca.
-///
-/// Aproximación pintada a mano: el proyecto no trae el archivo oficial y una
-/// «G» suelta en un color no se lee como el botón de Google. Se sustituye por
-/// el asset en cuanto exista.
-class _GoogleMark extends StatelessWidget {
-  const _GoogleMark({this.size = 18});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(painter: _GoogleMarkPainter()),
-    );
-  }
-}
-
-class _GoogleMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final stroke = w * 0.19;
-    final center = Offset(w / 2, w / 2);
-    final ring = Rect.fromCircle(center: center, radius: w * 0.29);
-    final strokePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.butt;
-
-    // Anillos en sentido horario desde las 12: azul arriba y a la derecha,
-    // rojo abajo a la derecha, amarillo abajo a la izquierda, verde a la izquierda.
-    const blue = Color(0xFF4285F4);
-    const red = Color(0xFFEA4335);
-    const yellow = Color(0xFFFBBC05);
-    const green = Color(0xFF34A853);
-
-    void arc(Color color, double start, double sweep) {
-      canvas.drawArc(ring, start, sweep, false, strokePaint..color = color);
-    }
-
-    arc(blue, -1.5708, 2.0); // 270° → 385°: de las 12 a la barra
-    arc(red, 0.43, 0.62); // bajo la barra hasta abajo
-    arc(yellow, 1.05, 0.9);
-    arc(green, 1.95, 2.19); // izquierda hasta volver a las 12
-
-    // Trazo horizontal de la «G», del centro al borde derecho del anillo.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(center.dx - w * 0.02, center.dy - stroke / 2, center.dx + w * 0.29, center.dy + stroke / 2),
-        Radius.circular(stroke / 2),
-      ),
-      Paint()..color = blue,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_GoogleMarkPainter oldDelegate) => false;
 }

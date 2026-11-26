@@ -17,6 +17,7 @@ import 'package:mindjora_pacientes/paciente_registro.dart';
 import 'package:mindjora_pacientes/paciente_tests.dart';
 import 'package:mindjora_pacientes/paciente_acompanante.dart';
 import 'package:mindjora_pacientes/paciente_chats.dart';
+import 'package:mindjora_pacientes/widgets.dart';
 
 /// Directorio que devolvería el RPC cuando la migración está aplicada.
 const Map<int, ({String nombre, String? avatarUrl})> directorioPrueba = {
@@ -422,6 +423,48 @@ void main() {
   Color? inkOf(WidgetTester tester, String label) =>
       tester.widget<Text>(find.text(label)).style?.color;
 
+  testWidgets('el contenido se limita en web y ocupa el ancho del teléfono', (
+    WidgetTester tester,
+  ) async {
+    final childKey = GlobalKey();
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ResponsiveContent(child: SizedBox.expand(key: childKey)),
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byKey(childKey)).width, 1120);
+
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pump();
+    expect(tester.getSize(find.byKey(childKey)).width, 390);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('el panel no desborda en una ventana web amplia', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(home: PacienteInicioPage(auth: FakePacienteAuth())),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Hola, Karen Lucía'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   /// Tema y tokens con los que está pintándose el saludo del dashboard.
   ({ThemeData theme, PanelTokens tokens}) panelTheme(WidgetTester tester) {
     final context = tester.element(find.text('Hola, Karen Lucía'));
@@ -445,11 +488,11 @@ void main() {
     expect(find.text('¿Olvidaste tu contraseña?'), findsOneWidget);
     expect(find.text('Recordar sesión en este dispositivo'), findsOneWidget);
     expect(find.text('Iniciar Sesión como Paciente'), findsOneWidget);
-    expect(find.text('O continúa con'), findsOneWidget);
-    expect(find.text('Google'), findsOneWidget);
+    expect(find.text('O continúa con'), findsNothing);
+    expect(find.text('Google'), findsNothing);
     expect(
       find.text('¿Problemas para acceder a tu sesión? Contactar soporte'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('¿Aún no tienes cuenta?'), findsOneWidget);
     expect(find.text('Regístrate como Paciente'), findsOneWidget);
@@ -2600,7 +2643,7 @@ void main() {
     (WidgetTester tester) async {
       await pumpCompanion(tester, FakePacienteAuth(demo: true));
 
-      expect(find.text('Sin conexion a la base de datos.'), findsOneWidget);
+      expect(find.text('Sin conexión a la base de datos.'), findsOneWidget);
       expect(
         find.text('Consulta autorizada para Oscar Flerez'),
         findsOneWidget,

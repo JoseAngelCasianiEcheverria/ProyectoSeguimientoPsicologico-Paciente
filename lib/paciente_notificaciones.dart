@@ -139,7 +139,7 @@ class _PacienteNotificacionesPageState
         final cuando = fecha == null
             ? 'fecha por confirmar'
             : '${fecha.day}/${fecha.month} ${fecha.hour.toString().padLeft(2, '0')}:'
-                '${fecha.minute.toString().padLeft(2, '0')}';
+                  '${fecha.minute.toString().padLeft(2, '0')}';
         final kind = switch (estado) {
           'CANCELADA' => _Kind.inasistencia,
           'PENDIENTE' => _Kind.preconsulta,
@@ -210,9 +210,9 @@ class _PacienteNotificacionesPageState
   }
 
   void _openTests() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const PacienteTestsPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const PacienteTestsPage()));
   }
 
   void _openRoom() {
@@ -243,7 +243,7 @@ class _PacienteNotificacionesPageState
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            ResponsiveContent(child: _buildHeader()),
             Expanded(
               // Deslizar hacia abajo vuelve a consultar las citas y sus
               // avisos; el `AlwaysScrollable` permite el gesto aunque la
@@ -254,24 +254,26 @@ class _PacienteNotificacionesPageState
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTitle(),
-                      const SizedBox(height: 16),
-                      _buildTabs(),
-                      const SizedBox(height: 20),
-                      for (final notice in priority) ...[
-                        _buildNotice(notice.kind),
+                  child: ResponsiveContent(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildTitle(),
+                        const SizedBox(height: 16),
+                        _buildTabs(),
                         const SizedBox(height: 20),
+                        for (final notice in priority) ...[
+                          _buildNotice(notice.kind),
+                          const SizedBox(height: 20),
+                        ],
+                        if (today.isNotEmpty) ..._buildGroup('HOY', today),
+                        if (earlier.isNotEmpty)
+                          ..._buildGroup('AYER Y ANTERIORES', earlier),
+                        if (visible.isEmpty) const _EmptyState(),
+                        const SizedBox(height: 4),
+                        _buildChannels(),
                       ],
-                      if (today.isNotEmpty) ..._buildGroup('HOY', today),
-                      if (earlier.isNotEmpty)
-                        ..._buildGroup('AYER Y ANTERIORES', earlier),
-                      if (visible.isEmpty) const _EmptyState(),
-                      const SizedBox(height: 4),
-                      _buildChannels(),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -327,9 +329,8 @@ class _PacienteNotificacionesPageState
             icon: Icons.tune_rounded,
             tooltip: 'Filtrar notificaciones',
             size: 36,
-            onPressed: () => _pending(
-              'Los filtros avanzados todavía no están disponibles.',
-            ),
+            onPressed: () =>
+                _pending('Los filtros avanzados todavía no están disponibles.'),
           ),
           const SizedBox(width: 8),
           SquareIconButton(
@@ -459,16 +460,16 @@ class _PacienteNotificacionesPageState
       ),
       child: Row(
         children: [
-          const Icon(Icons.calendar_month_outlined,
-              size: 20, color: AppColors.brand),
+          const Icon(
+            Icons.calendar_month_outlined,
+            size: 20,
+            color: AppColors.brand,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               texto,
-              style: AppText.body.copyWith(
-                color: AppColors.ink,
-                fontSize: 13,
-              ),
+              style: AppText.body.copyWith(color: AppColors.ink, fontSize: 13),
             ),
           ),
         ],
@@ -648,7 +649,11 @@ class _PacienteNotificacionesPageState
           'virtual.',
       extra: Row(
         children: [
-          const Icon(Icons.schedule_rounded, size: 15, color: AppColors.inkSoft),
+          const Icon(
+            Icons.schedule_rounded,
+            size: 15,
+            color: AppColors.inkSoft,
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: const Text(

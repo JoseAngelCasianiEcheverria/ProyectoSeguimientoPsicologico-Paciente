@@ -152,22 +152,24 @@ class _PacienteChatsPageState extends State<PacienteChatsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            ResponsiveContent(child: _buildHeader()),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _cargar,
                 color: AppColors.brand,
-                child: _cargando
-                    ? ListView(
-                        physics: AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: 260,
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        ],
-                      )
-                    : _buildList(),
+                child: ResponsiveContent(
+                  child: _cargando
+                      ? ListView(
+                          physics: AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: 260,
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                          ],
+                        )
+                      : _buildList(),
+                ),
               ),
             ),
           ],

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'design_system.dart';
 
-OutlineInputBorder _outline(Color color, [double width = 1]) => OutlineInputBorder(
-  borderRadius: BorderRadius.circular(AppRadius.field),
-  borderSide: BorderSide(color: color, width: width),
-);
+OutlineInputBorder _outline(Color color, [double width = 1]) =>
+    OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.field),
+      borderSide: BorderSide(color: color, width: width),
+    );
 
 /// Decoración común de los campos de formulario de las vistas.
 InputDecoration appInputDecoration({
@@ -26,7 +27,8 @@ InputDecoration appInputDecoration({
   filled: true,
   fillColor: Colors.white,
   contentPadding:
-      contentPadding ?? const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      contentPadding ??
+      const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
   border: _outline(AppColors.border),
   enabledBorder: _outline(AppColors.border),
   focusedBorder: _outline(AppColors.brand, 1.3),
@@ -56,7 +58,10 @@ class FormCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: spaced),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: spaced,
+      ),
     );
   }
 }
@@ -145,7 +150,11 @@ class LabeledField extends StatelessWidget {
           onChanged: onChanged,
           onFieldSubmitted: onFieldSubmitted,
           textInputAction: textInputAction,
-          decoration: appInputDecoration(hint: hint, icon: icon, suffix: suffix),
+          decoration: appInputDecoration(
+            hint: hint,
+            icon: icon,
+            suffix: suffix,
+          ),
         ),
       ],
     );
@@ -169,7 +178,12 @@ class LabeledField extends StatelessWidget {
         style: AppText.label,
       ),
     );
-    final left = Row(children: [title, if (note != null) Text(note!, style: AppText.labelNote)]);
+    final left = Row(
+      children: [
+        title,
+        if (note != null) Text(note!, style: AppText.labelNote),
+      ],
+    );
 
     if (labelAction == null) return left;
     return Stack(
@@ -289,10 +303,7 @@ class SoftButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18),
-            const SizedBox(width: 9),
-          ],
+          if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 9)],
           Flexible(
             child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
@@ -352,7 +363,10 @@ class SquareIconButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: badgeColor ?? AppColors.brand,
                   shape: BoxShape.circle,
-                  border: Border.all(color: backgroundColor ?? Colors.white, width: 1.5),
+                  border: Border.all(
+                    color: backgroundColor ?? Colors.white,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -603,14 +617,34 @@ Widget appSwitch({required bool value, required ValueChanged<bool> onChanged}) {
     activeThumbColor: Colors.white,
     activeTrackColor: AppColors.brand,
     thumbIcon: const WidgetStatePropertyAll<Icon?>(null),
-    trackOutlineColor: const WidgetStatePropertyAll<Color?>(
-      Color(0xFFCFD6D4),
-    ),
+    trackOutlineColor: const WidgetStatePropertyAll<Color?>(Color(0xFFCFD6D4)),
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
   );
 }
 
 // --- Piezas del panel del paciente y del directorio -----------------------
+
+/// Centra el contenido en pantallas amplias y conserva el ancho móvil.
+class ResponsiveContent extends StatelessWidget {
+  const ResponsiveContent({
+    super.key,
+    required this.child,
+    this.maxWidth = 1120,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+  }
+}
 
 /// Título serif de bloque con su nota de la derecha («Septiembre 2026»).
 ///
@@ -645,7 +679,10 @@ class PanelSectionHeading extends StatelessWidget {
             title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: AppText.panelHeading.copyWith(color: color, fontSize: fontSize),
+            style: AppText.panelHeading.copyWith(
+              color: color,
+              fontSize: fontSize,
+            ),
           ),
         ),
         if (trailing != null) ...[const SizedBox(width: 10), trailing!],
@@ -729,8 +766,16 @@ class PanelBottomNav extends StatelessWidget {
       icon: Icons.calendar_today_outlined,
       active: Icons.calendar_today_rounded,
     ),
-    (label: 'Diario', icon: Icons.menu_book_outlined, active: Icons.menu_book_rounded),
-    (label: 'Perfil', icon: Icons.person_outline_rounded, active: Icons.person_rounded),
+    (
+      label: 'Diario',
+      icon: Icons.menu_book_outlined,
+      active: Icons.menu_book_rounded,
+    ),
+    (
+      label: 'Perfil',
+      icon: Icons.person_outline_rounded,
+      active: Icons.person_rounded,
+    ),
   ];
 
   @override
@@ -744,20 +789,27 @@ class PanelBottomNav extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              for (var i = 0; i < _tabs.length; i++)
-                Expanded(
-                  child: _NavTab(
-                    label: _tabs[i].label,
-                    icon: i == selectedIndex ? _tabs[i].active : _tabs[i].icon,
-                    selected: i == selectedIndex,
-                    selectedColor: selectedColor,
-                    idleColor: idleColor,
-                    onTap: onTabSelected == null ? null : () => onTabSelected!(i),
+          child: ResponsiveContent(
+            maxWidth: 960,
+            child: Row(
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  Expanded(
+                    child: _NavTab(
+                      label: _tabs[i].label,
+                      icon: i == selectedIndex
+                          ? _tabs[i].active
+                          : _tabs[i].icon,
+                      selected: i == selectedIndex,
+                      selectedColor: selectedColor,
+                      idleColor: idleColor,
+                      onTap: onTabSelected == null
+                          ? null
+                          : () => onTabSelected!(i),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -812,9 +864,15 @@ class _NavTab extends StatelessWidget {
 
 /// «Dra. Yani Casiani» → «YC», para la foto de respaldo.
 String inicialesDe(String nombre) {
-  final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final partes = nombre
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (partes.isEmpty) return '—';
-  final sans = partes.map((p) => p.replaceFirst(RegExp(r'^(Dra?|Dr|Psic\.)[.\s]*'), ''));
+  final sans = partes.map(
+    (p) => p.replaceFirst(RegExp(r'^(Dra?|Dr|Psic\.)[.\s]*'), ''),
+  );
   final utiles = sans.where((p) => p.isNotEmpty).toList();
   if (utiles.isEmpty) return '—';
   if (utiles.length == 1) return utiles.first.substring(0, 1).toUpperCase();
@@ -856,7 +914,12 @@ class FotoPerfil extends StatelessWidget {
     );
     final urlFoto = url;
     if (urlFoto == null || urlFoto.isEmpty) {
-      return Container(width: size, height: size, decoration: fondo, child: texto);
+      return Container(
+        width: size,
+        height: size,
+        decoration: fondo,
+        child: texto,
+      );
     }
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -865,8 +928,12 @@ class FotoPerfil extends StatelessWidget {
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) =>
-            Container(width: size, height: size, decoration: fondo, child: texto),
+        errorBuilder: (_, _, _) => Container(
+          width: size,
+          height: size,
+          decoration: fondo,
+          child: texto,
+        ),
       ),
     );
   }

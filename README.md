@@ -1,10 +1,10 @@
 # Mindjora · Pacientes
 
-Portal web del paciente de **Mindjora**. Aplicacion Flutter (web) donde el
+Portal web del paciente de **Mindjora**. Aplicación Flutter (web) donde el
 paciente consulta sus sesiones, su agenda, su diario y sus tests.
 
 Es un cliente: todo el backend vive en un proyecto de Supabase compartido con
-el portal del psicologo. Este repositorio no contiene ni migraciones ni
+el portal del psicólogo. Este repositorio no contiene ni migraciones ni
 funciones de servidor propias.
 
 ## Requisitos
@@ -53,12 +53,12 @@ flutter test
 
 ## Notas
 
-- `web/_headers` usa el formato de Netlify y Cloudflare Pages. Como aqui se
-  sirve con nginx, la version equivalente esta en `tools/nginx-security.conf`,
+- `web/_headers` usa el formato de Netlify y Cloudflare Pages. Como aquí se
+  sirve con nginx, la versión equivalente está en `tools/nginx-security.conf`,
   que el `Dockerfile` copia a `conf.d/`; si se despliega en Netlify o Pages, se
   usa `web/_headers` directamente.
 - `sql/` guarda las migraciones del lado paciente **ya aplicadas** al proyecto
   de Supabase, como referencia. El esquema lo administra el repositorio del
-  portal del psicologo: no se ejecutan desde aqui.
-- Nunca se versiona `.env`. La clave publica de Supabase es segura en el
-  cliente; la seguridad la aplican las politicas RLS.
+  portal del psicólogo: no se ejecutan desde aquí.
+- Nunca se versiona `.env`. La clave pública de Supabase es segura en el
+  cliente; la seguridad la aplican las políticas RLS.
