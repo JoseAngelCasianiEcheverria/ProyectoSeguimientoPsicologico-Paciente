@@ -2,12 +2,15 @@
 # Build web para Docker/Render. La imagen no trae Flutter: se instala aqui.
 set -euo pipefail
 
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.47.3}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.47.9}"
 FLUTTER_ROOT="${FLUTTER_ROOT:-$HOME/flutter}"
 
 if [ ! -x "$FLUTTER_ROOT/bin/flutter" ]; then
-  curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
-    | tar -xJ -C "$(dirname "$FLUTTER_ROOT")"
+  tarball="/tmp/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+  curl -fL --http1.1 --retry 5 --retry-all-errors -o "$tarball" \
+    "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+  tar -xJf "$tarball" -C "$(dirname "$FLUTTER_ROOT")"
+  rm -f "$tarball"
 fi
 
 export PATH="$PATH:$FLUTTER_ROOT/bin"

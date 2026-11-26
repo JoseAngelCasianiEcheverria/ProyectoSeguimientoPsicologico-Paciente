@@ -9,7 +9,7 @@ funciones de servidor propias.
 
 ## Requisitos
 
-- Flutter `3.47.3` (la misma version que usa la imagen de Docker).
+- Flutter `3.47.9` (la misma version que usa la imagen de Docker).
 - Un proyecto de Supabase con el esquema del portal ya aplicado.
 
 ## Desarrollo local

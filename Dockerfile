@@ -5,7 +5,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV FLUTTER_VERSION=3.47.3 FLUTTER_ROOT=/opt/flutter
+ENV FLUTTER_VERSION=3.47.9 FLUTTER_ROOT=/opt/flutter
 ARG SUPABASE_URL
 ARG SUPABASE_PUBLISHABLE_KEY
 
