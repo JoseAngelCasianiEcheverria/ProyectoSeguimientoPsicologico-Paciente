@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/app_config.dart';
 import 'design_system.dart';
@@ -14,8 +15,7 @@ class PacienteRegistroPage extends StatefulWidget {
   final PacienteAuth? auth;
 
   @override
-  State<PacienteRegistroPage> createState() =>
-      _PacienteRegistroPageState();
+  State<PacienteRegistroPage> createState() => _PacienteRegistroPageState();
 }
 
 class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
@@ -50,14 +50,30 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
     super.dispose();
   }
 
-  String? _required(String? value) =>
-      value == null || value.trim().isEmpty ? 'Este campo es obligatorio' : null;
+  String? _required(String? value) => value == null || value.trim().isEmpty
+      ? 'Este campo es obligatorio'
+      : null;
 
   String? _validEmail(String? value) {
     if (value == null || value.trim().isEmpty) return 'Ingresa tu correo';
-    if (!value.contains('@') || !value.contains('.')) {
+    final email = value.trim();
+    final emailPattern = RegExp(
+      r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@"
+      r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$",
+    );
+    if (!emailPattern.hasMatch(email)) {
       return 'Ingresa un correo válido';
     }
+    return null;
+  }
+
+  String? _validateNumericId(String? value) {
+    final digits = value?.trim() ?? '';
+    if (digits.isEmpty) return 'Este campo es obligatorio';
+    if (!RegExp(r'^[0-9]+$').hasMatch(digits)) {
+      return 'Ingresa solo números';
+    }
+    if (digits.length > 10) return 'Máximo 10 dígitos';
     return null;
   }
 
@@ -105,14 +121,18 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
 
     if (!resultado.exito) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(resultado.mensaje ?? 'No pudimos crear la cuenta.')),
+        SnackBar(
+          content: Text(resultado.mensaje ?? 'No pudimos crear la cuenta.'),
+        ),
       );
       return;
     }
 
     if (resultado.requiereConfirmacion) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cuenta creada. Revisa tu correo para confirmarla.')),
+        const SnackBar(
+          content: Text('Cuenta creada. Revisa tu correo para confirmarla.'),
+        ),
       );
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => const PacienteLoginPage()),
@@ -150,7 +170,8 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
                           _buildHeader(),
                           const SizedBox(height: 16),
                           if (!AppConfig.isConfigured) _buildConnectionNotice(),
-                          if (!AppConfig.isConfigured) const SizedBox(height: 16),
+                          if (!AppConfig.isConfigured)
+                            const SizedBox(height: 16),
                           const SizedBox(height: 10),
                           const Text(
                             'Registro de Paciente',
@@ -202,7 +223,11 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off_rounded, size: 18, color: AppColors.inkSoft),
+          const Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: AppColors.inkSoft,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -248,12 +273,16 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
         ),
         LabeledField(
           label: 'Documento de identidad',
-          note: ' (Tarjeta / Cédula / DNI)',
+          note: ' (solo números, máx. 10)',
           controller: _document,
           hint: '10458034',
           icon: Icons.fingerprint_rounded,
-          validator: _required,
+          validator: _validateNumericId,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(10),
+          ],
           textInputAction: TextInputAction.next,
         ),
         LabeledField(
@@ -267,11 +296,16 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
         ),
         LabeledField(
           label: 'Teléfono móvil',
+          note: ' (solo números, máx. 10)',
           controller: _phone,
-          hint: '+57 300 000 0000',
+          hint: '3000000000',
           icon: Icons.call_outlined,
-          validator: _required,
-          keyboardType: TextInputType.phone,
+          validator: _validateNumericId,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(10),
+          ],
           textInputAction: TextInputAction.next,
         ),
         LabeledField(
@@ -284,7 +318,9 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
           textInputAction: TextInputAction.done,
           onChanged: (_) => setState(() {}),
           suffix: IconButton(
-            tooltip: _showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña',
+            tooltip: _showPassword
+                ? 'Ocultar contraseña'
+                : 'Mostrar contraseña',
             onPressed: () => setState(() => _showPassword = !_showPassword),
             icon: Icon(
               _showPassword
@@ -307,15 +343,15 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
     final label = isEmpty
         ? 'Pendiente'
         : isValid
-            ? 'Válida'
-            : password.length < 8
-                ? 'Muy corta'
-                : 'Faltan números';
+        ? 'Válida'
+        : password.length < 8
+        ? 'Muy corta'
+        : 'Faltan números';
     final color = isEmpty
         ? AppColors.textFaint
         : isValid
-            ? AppColors.brand
-            : AppColors.error;
+        ? AppColors.brand
+        : AppColors.error;
 
     return Row(
       children: [
@@ -394,9 +430,14 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
         LabeledField(
           label: 'Documento de identidad',
           controller: _companionDocument,
-          hint: 'Ej. 14.520.118-2',
-          validator: _required,
+          note: ' (solo números, máx. 10)',
+          hint: 'Ej. 14520118',
+          validator: _validateNumericId,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(10),
+          ],
           textInputAction: TextInputAction.next,
         ),
         LabeledField(
@@ -459,7 +500,8 @@ class _PacienteRegistroPageState extends State<PacienteRegistroPage> {
                           ),
                         ),
                         TextSpan(
-                          text: ', el Consentimiento Informado para '
+                          text:
+                              ', el Consentimiento Informado para '
                               'Telemedicina y el registro de expediente '
                               'clínico.',
                         ),
@@ -501,9 +543,7 @@ class _RelationshipFieldState extends State<_RelationshipField> {
           isExpanded: true,
           validator: (value) =>
               value == null ? 'Selecciona una relación' : null,
-          decoration: appInputDecoration(
-            hint: 'Selecciona el tipo de vínculo',
-          ),
+          decoration: appInputDecoration(hint: 'Selecciona el tipo de vínculo'),
           items: const [
             DropdownMenuItem(
               value: 'Familiar directo',

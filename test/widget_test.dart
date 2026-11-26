@@ -577,7 +577,7 @@ void main() {
     expect(find.text('Registro de Paciente'), findsOneWidget);
     expect(find.text('Paso 1 de 2: Datos de Cuenta'), findsOneWidget);
     expect(find.text('Información del Paciente'), findsOneWidget);
-    expect(find.text(' (Tarjeta / Cédula / DNI)'), findsOneWidget);
+    expect(find.text(' (solo números, máx. 10)'), findsNWidgets(3));
     expect(find.text('Crear Contraseña'), findsOneWidget);
     expect(
       find.text('Reglas: alfanumérico, mínimo 8 caracteres'),
@@ -587,6 +587,48 @@ void main() {
     expect(find.text('Datos de la persona autorizada'), findsOneWidget);
     expect(find.text('Relación con el paciente'), findsOneWidget);
     expect(find.text('Completar Registro de Paciente'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('documentos y teléfono aceptan solo 10 dígitos como máximo', (
+    WidgetTester tester,
+  ) async {
+    await pumpOnPhone(tester, const MaterialApp(home: PacienteRegistroPage()));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    final documento = tester.widget<TextFormField>(fields.at(1));
+    final telefono = tester.widget<TextFormField>(fields.at(3));
+    final documentoAcompanante = tester.widget<TextFormField>(fields.at(6));
+
+    await tester.enterText(fields.at(1), '12a345678901');
+    await tester.enterText(fields.at(3), '+57 30012345678');
+    await tester.enterText(fields.at(6), '14.520.118-2');
+
+    expect(documento.controller!.text, '1234567890');
+    expect(telefono.controller!.text, '5730012345');
+    expect(documentoAcompanante.controller!.text, '145201182');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('el registro rechaza correos con formato inválido', (
+    WidgetTester tester,
+  ) async {
+    await pumpOnPhone(tester, const MaterialApp(home: PacienteRegistroPage()));
+    await tester.pumpAndSettle();
+
+    final correo = find.byType(TextFormField).at(2);
+    await tester.enterText(correo, 'persona@dominio');
+    tester.state<FormState>(find.byType(Form)).validate();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ingresa un correo válido'), findsOneWidget);
+
+    await tester.enterText(correo, 'persona@dominio.com');
+    tester.state<FormState>(find.byType(Form)).validate();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ingresa un correo válido'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

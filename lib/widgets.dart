@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'design_system.dart';
 
@@ -105,6 +106,7 @@ class LabeledField extends StatelessWidget {
     this.icon,
     this.validator,
     this.keyboardType,
+    this.inputFormatters,
     this.capitalization = TextCapitalization.none,
     this.obscureText = false,
     this.suffix,
@@ -127,6 +129,7 @@ class LabeledField extends StatelessWidget {
   final TextEditingController controller;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization capitalization;
   final bool obscureText;
   final Widget? suffix;
@@ -145,6 +148,7 @@ class LabeledField extends StatelessWidget {
           controller: controller,
           validator: validator,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           textCapitalization: capitalization,
           obscureText: obscureText,
           onChanged: onChanged,
